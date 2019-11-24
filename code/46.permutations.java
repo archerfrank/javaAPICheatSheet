@@ -21,7 +21,7 @@ class Solution {
         for (int i =0; i < nums.length; i++) {
             if (used[i] == false) {
                 comb.add(nums[i]);
-                used[i] = true;
+                used[i] = true;  // could also use comb.contains(nums[i]) to eliminate the usage of used.
                 permute(nums,used, comb, res);
                 comb.remove(comb.size() -1);
                 used[i] = false;
