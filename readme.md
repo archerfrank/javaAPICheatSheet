@@ -8,6 +8,16 @@ i << 1; // 左移  *2
 i >> 1; // 右移   /2
 i >>> 1; // unsigned 右移 /2
 
+(int) x == x // check if x is a integer.
+
+Character.getNumericValue(char ch)
+//Returns the int value that the specified Unicode character represents.
+Character.isAlphabetic(int codePoint)
+//Determines if the specified character (Unicode code point) is an alphabet.
+
+Character.isDigit(char ch)
+Determines if the specified character is a digit.
+
 ```
 ## Character
 
@@ -40,6 +50,12 @@ boolean[] dp = new boolean[nums.length];
 // backtrack visited array creation
 if (board == null || board.length == 0) return false;
 boolean[][] visited = new boolean[board.length][board[0].length];
+
+// sort by reverse order
+Arrays.sort(arr, Collections.reverseOrder()); 
+
+Integer[] arr2 = new Integer[] {54,432,53,21,43};
+Arrays.sort(arr2, Comparator.reverseOrder());
 ```
 
 ### Convert Aarry to List
@@ -65,6 +81,8 @@ LinkedList<Integer> l = new LinkedList<>(list);
 ```java
 list as List<Integer>
 list.stream().mapToInt(x -> x).toArray();
+
+String[] arr = list.toArray(new String[list.size()]); 
 ```
 
 ## LinkedList
@@ -90,13 +108,16 @@ list.get(int index);
 //Returns the element at the specified position in this list.
 
 list.getFirst()
-//Returns the first element in this list.
+//Returns the first element in this list.Throw ex when list is empty.
 
 list.peek()
 //Retrieves, but does not remove, the head (first element) of this list.
 
 list.peekLast()
 //Retrieves, but does not remove, the last element of this list, or returns null if this list is empty.
+
+list.getLast()
+//Returns the last element in this list. Throw ex when list is empty.
 ```
 
 ## ArrayList
@@ -108,6 +129,11 @@ Collections.emptyList();
 ```
 
 ## PriortyQueue
+
+```java
+PriorityQueue<Map.Entry<Character, Integer>> pq = new PriorityQueue<>((a, b) -> b.getValue() - a.getValue());
+        pq.addAll(map.entrySet());
+```
 
 ## Stream
 
@@ -178,3 +204,237 @@ while (even1 != null && even1.next != null) {
 }
 ```
 
+## Sort and select
+
+stand partition by qsort.
+
+```java
+// Standard partition process of QuickSort.  
+    // It considers the last element as pivot  
+    // and moves all smaller element to left of 
+    // it and greater elements to right 
+public static int partition(Integer [] arr, int l,  
+                                               int r) 
+    { 
+        int x = arr[r], i = l; // always keep arr[i] > x or i == j
+        for (int j = l; j <= r - 1; j++) 
+        { 
+            if (arr[j] <= x) 
+            { 
+                //Swapping arr[i] and arr[j] 
+                int temp = arr[i]; 
+                arr[i] = arr[j]; 
+                arr[j] = temp; 
+  
+                i++; 
+            } 
+        } 
+          
+        //Swapping arr[i] and arr[r] 
+        int temp = arr[i]; 
+        arr[i] = arr[r]; 
+        arr[r] = temp; 
+  
+        return i; 
+    } 
+```
+ 
+### merge sort related problem.
+https://leetcode.com/problems/reverse-pairs/discuss/97268/General-principles-behind-problems-similar-to-%22Reverse-Pairs%22 
+
+## Binary Search
+如果使用lo<=hi的方式, find the exact element in the array. 
+```java
+while (lo <= hi) {
+    int mid = (lo+hi) >> 1;
+    if (nums[mid] == target) return mid;
+    if () {
+        lo = mid + 1;
+    } else {
+        hi = mid - 1;
+    }
+}
+
+at the end of the loop, lo = hi + 1;
+```
+
+if you want to find element > or < closest to the target.
+
+```java
+lo = 0;
+hi = nums.length-1;
+
+while (lo < hi) {
+    int mid = (lo+hi) >> 1;
+    if (num[mid] < target) { // find the first item >= target
+        lo = mid + 1; 
+    } else {
+        hi = mid;
+    }
+}
+
+while (lo < hi) {
+    int mid = (lo+hi + 1) >> 1;
+    if (num[mid] > target>) { // find the last item <= target
+        hi = mid - 1; 
+    } else {
+        lo = mid;
+    }
+}
+
+at the end of the loop, lo = hi;
+```
+
+https://leetcode.com/explore/learn/card/binary-search/
+
+http://www.codebelief.com/article/2018/04/completely-understand-binary-search-and-its-boundary-cases/
+
+## Union find
+中间可能有很多的中间节点，总要用find才能找到根节点。
+https://www.hackerearth.com/zh/practice/notes/disjoint-set-union-union-find/
+
+# Tree
+
+### Preorder
+https://www.geeksforgeeks.org/iterative-preorder-traversal/
+```java
+ void iterativePreorder(Node node) { 
+          
+        // Base Case 
+        if (node == null) { 
+            return; 
+        } 
+  
+        // Create an empty stack and push root to it 
+        Stack<Node> nodeStack = new Stack<Node>(); 
+        nodeStack.push(root); 
+  
+        /* Pop all items one by one. Do following for every popped item 
+         a) print it 
+         b) push its right child 
+         c) push its left child 
+         Note that right child is pushed first so that left is processed first */
+        while (nodeStack.empty() == false) { 
+              
+            // Pop the top item from stack and print it 
+            Node mynode = nodeStack.peek(); 
+            System.out.print(mynode.data + " "); 
+            nodeStack.pop(); 
+  
+            // Push right and left children of the popped node to stack 
+            if (mynode.right != null) { 
+                nodeStack.push(mynode.right); 
+            } 
+            if (mynode.left != null) { 
+                nodeStack.push(mynode.left); 
+            } 
+        } 
+    } 
+```
+
+### Inorder
+1) Create an empty stack S.
+2) Initialize current node as root
+3) Push the current node to S and set current = current->left until current is NULL
+4) If current is NULL and stack is not empty then 
+     * a) Pop the top item from stack.
+     * b) Print the popped item, set current = popped_item->right 
+     * c) Go to step 3.
+5) If current is NULL and stack is empty then we are done.
+```java
+void inorder() 
+    { 
+        if (root == null) 
+            return; 
+  
+  
+        Stack<Node> s = new Stack<Node>(); 
+        Node curr = root; 
+  
+        // traverse the tree 
+        while (curr != null || s.size() > 0) 
+        { 
+  
+            /* Reach the left most Node of the 
+            curr Node */
+            while (curr !=  null) 
+            { 
+                /* place pointer to a tree node on 
+                   the stack before traversing 
+                  the node's left subtree */
+                s.push(curr); 
+                curr = curr.left; 
+            } 
+  
+            /* Current must be NULL at this point */
+            curr = s.pop(); 
+  
+            System.out.print(curr.data + " "); 
+  
+            /* we have visited the node and its 
+               left subtree.  Now, it's right 
+               subtree's turn */
+            curr = curr.right; 
+        } 
+    } 
+```
+
+### post order
+1. Push root to first stack.
+2. Loop while first stack is not empty
+   * 2.1 Pop a node from first stack and push it to second stack
+   * 2.2 Push left and right children of the popped node to first stack
+3. Print contents of second stack
+```java
+static void postOrderIterative(node root) 
+    { 
+        // Create two stacks 
+        s1 = new Stack<>(); 
+        s2 = new Stack<>(); 
+  
+        if (root == null) 
+            return; 
+  
+        // push root to first stack 
+        s1.push(root); 
+  
+        // Run while first stack is not empty 
+        while (!s1.isEmpty()) { 
+            // Pop an item from s1 and push it to s2 
+            node temp = s1.pop(); 
+            s2.push(temp); 
+  
+            // Push left and right children of 
+            // removed item to s1 
+            if (temp.left != null) 
+                s1.push(temp.left); 
+            if (temp.right != null) 
+                s1.push(temp.right); 
+        } 
+  
+        // Print all elements of second stack 
+        while (!s2.isEmpty()) { 
+            node temp = s2.pop(); 
+            System.out.print(temp.data + " "); 
+        } 
+    } 
+```
+
+## Graph
+
+### Cycle
+https://www.geeksforgeeks.org/detect-cycle-in-a-graph/
+https://www.geeksforgeeks.org/detect-cycle-undirected-graph/
+
+## Indegree
+
+
+## Backtrack
+### Subsets, Permutations, Combination Sum, Palindrome Partitioning
+https://leetcode.com/problems/subsets/discuss/27281/A-general-approach-to-backtracking-questions-in-Java-(Subsets-Permutations-Combination-Sum-Palindrome-Partitioning)
+
+backtrack 如果可以有返回值（数值）求和，就相当于dp，可以cache返回值剪枝。
+
+## Sliding windonws
+
+https://leetcode.com/problems/find-all-anagrams-in-a-string/discuss/92007/Sliding-Window-algorithm-template-to-solve-all-the-Leetcode-substring-search-problem. 
