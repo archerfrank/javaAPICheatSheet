@@ -18,7 +18,7 @@ class Solution {
             queue.offer(new int[]{i,0});
         }
 
-        for (int j = k; j >0; j--) {
+        for (int j = k; j >0 && !queue.isEmpty(); j--) {
             int[]  cur = queue.poll();
             List<Integer> comb = new ArrayList<>();
             comb.add(nums1[cur[0]]);
