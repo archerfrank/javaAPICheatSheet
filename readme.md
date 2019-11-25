@@ -126,6 +126,9 @@ list.getLast()
 Collections.emptyList();
 // empty list;
 
+list.sort(Comparator.naturalOrder());
+Collections.sort(list);
+Collections.sort(list, Compartor.reverseOrder());
 ```
 
 ## PriortyQueue
@@ -293,6 +296,24 @@ http://www.codebelief.com/article/2018/04/completely-understand-binary-search-an
 中间可能有很多的中间节点，总要用find才能找到根节点。
 https://www.hackerearth.com/zh/practice/notes/disjoint-set-union-union-find/
 
+```java
+public int find(int[] f, int id){
+    while (id!=f[id]){
+        f[id]=f[f[id]];
+        id=f[id];
+    }
+    return id;
+}
+
+public void union(int x, int y) {
+    int rootX = find(x);
+    int rootY = find(y);
+    if (rootX != rootY) {
+        id[rootX] = rootY;
+    }
+}
+```
+
 # Tree
 
 ### Preorder
@@ -433,7 +454,7 @@ https://www.geeksforgeeks.org/detect-cycle-undirected-graph/
 ### Subsets, Permutations, Combination Sum, Palindrome Partitioning
 https://leetcode.com/problems/subsets/discuss/27281/A-general-approach-to-backtracking-questions-in-Java-(Subsets-Permutations-Combination-Sum-Palindrome-Partitioning)
 
-backtrack 如果可以有返回值（数值）求和，就相当于dp，可以cache返回值剪枝。
+**backtrack 如果可以有返回值（数值）求和，就相当于 top down dp，可以cache返回值剪枝。**
 
 ## Sliding windonws
 
