@@ -23,7 +23,14 @@ Determines if the specified character is a digit.
 
 
 ## StringBuilder
+```java
+setLength(int newLength)
+//Sets the length of the character sequence. This is used to remove the last appendant
 
+StringBuilder	insert(int offset, String str)
+//Inserts the string into this character sequence.
+//The offset argument must be greater than or equal to 0, and less than or equal to the length of this sequence.
+```
 
 ## String
 ```java
@@ -70,6 +77,8 @@ for (int i = 0; i < digits.length; i++) {
 2. 
 List l = Arrays.asList(digits); // digits must be Integer[], not int[];
 
+List l = Arrays.asList(1,2,3); // this is OK, it will be boxed automatically.
+
 3.
 List<Integer> list = Arrays.stream(digits).boxed().collect(Collectors.toList());
 // convert list to linkedlist
@@ -83,6 +92,25 @@ list as List<Integer>
 list.stream().mapToInt(x -> x).toArray();
 
 String[] arr = list.toArray(new String[list.size()]); 
+```
+
+## Tuple class
+
+```java
+
+class Tuple implements Comparable<Tuple> {
+    int x, y, val;
+    public Tuple (int x, int y, int val) {
+        this.x = x;
+        this.y = y;
+        this.val = val;
+    }
+    
+    @Override
+    public int compareTo (Tuple that) {
+        return this.val - that.val;
+    }
+}
 ```
 
 ## LinkedList
@@ -148,6 +176,21 @@ long count1 = Arrays.stream(nums).filter(x -> x==n1).count();
 ```
 
 ## Map
+
+java 9 initialize
+
+```java
+Map<String, String> emptyMap = Map.of();
+Map<String, String> singletonMap = Map.of("key1", "value");
+Map<String, String> map = Map.of("key1","value1", "key2", "value2");
+
+
+getOrDefault(Object key, V defaultValue)
+//Returns the value to which the specified key is mapped, or defaultValue if this map contains no mapping for the key.
+
+putIfAbsent(K key, V value)
+//If the specified key is not already associated with a value (or is mapped to null) associates it with the given value and returns null, else returns the current value.
+```
 
 * TreeMap.
 
@@ -292,6 +335,8 @@ https://leetcode.com/explore/learn/card/binary-search/
 
 http://www.codebelief.com/article/2018/04/completely-understand-binary-search-and-its-boundary-cases/
 
+https://leetcode.com/problems/find-k-th-smallest-pair-distance/discuss/109082/Approach-the-problem-using-the-%22trial-and-error%22-algorithm
+
 ## Union find
 中间可能有很多的中间节点，总要用find才能找到根节点。
 https://www.hackerearth.com/zh/practice/notes/disjoint-set-union-union-find/
@@ -398,6 +443,35 @@ void inorder()
             curr = curr.right; 
         } 
     } 
+
+
+
+
+public void morrisTraversal(TreeNode root){
+		TreeNode temp = null;
+		while(root!=null){
+			if(root.left!=null){
+				// connect threading for root
+				temp = root.left;
+				while(temp.right!=null && temp.right != root)
+					temp = temp.right;
+				// the threading already exists
+				if(temp.right!=null){
+					temp.right = null;
+					System.out.println(root.val); // visit the node
+					root = root.right;
+				}else{
+					// construct the threading
+					temp.right = root;
+					root = root.left;
+				}
+			}else{
+				System.out.println(root.val); // visit the node
+				root = root.right;
+			}
+		}
+	}
+
 ```
 
 ### post order
@@ -445,6 +519,7 @@ static void postOrderIterative(node root)
 
 ### Cycle
 https://www.geeksforgeeks.org/detect-cycle-in-a-graph/
+
 https://www.geeksforgeeks.org/detect-cycle-undirected-graph/
 
 ## Indegree
@@ -459,3 +534,26 @@ https://leetcode.com/problems/subsets/discuss/27281/A-general-approach-to-backtr
 ## Sliding windonws
 
 https://leetcode.com/problems/find-all-anagrams-in-a-string/discuss/92007/Sliding-Window-algorithm-template-to-solve-all-the-Leetcode-substring-search-problem. 
+
+2D sliding window
+
+https://leetcode.com/problems/max-sum-of-rectangle-no-larger-than-k/discuss/83599/Accepted-C%2B%2B-codes-with-explanation-and-references
+
+## Single Number Bit manupulation
+http://liadbiz.github.io/leetcode-single-number-problems-summary/
+
+## DFS
+
+2d Matrix offset
+```java 
+public static final int[][] dirs = {{0, 1}, {1, 0}, {0, -1}, {-1, 0}};
+```
+
+## BFS
+
+## Bits
+https://leetcode.com/problems/sum-of-two-integers/discuss/84278/A-summary%3A-how-to-use-bit-manipulation-to-solve-problems-easily-and-efficiently
+
+## DP
+
+https://zxi.mytechroad.com/blog/sp/knapsack-problem/
