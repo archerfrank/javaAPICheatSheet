@@ -539,6 +539,12 @@ https://leetcode.com/problems/find-all-anagrams-in-a-string/discuss/92007/Slidin
 
 https://leetcode.com/problems/max-sum-of-rectangle-no-larger-than-k/discuss/83599/Accepted-C%2B%2B-codes-with-explanation-and-references
 
+https://leetcode.com/problems/minimum-window-substring/discuss/26808/Here-is-a-10-line-template-that-can-solve-most-'substring'-problems
+
+1. Use two pointers: start and end to represent a window.
+2. Move end to find a valid window.
+3. When a valid window is found, move start to find a smaller window.
+
 ## Single Number Bit manupulation
 http://liadbiz.github.io/leetcode-single-number-problems-summary/
 
@@ -555,5 +561,9 @@ public static final int[][] dirs = {{0, 1}, {1, 0}, {0, -1}, {-1, 0}};
 https://leetcode.com/problems/sum-of-two-integers/discuss/84278/A-summary%3A-how-to-use-bit-manipulation-to-solve-problems-easily-and-efficiently
 
 ## DP
+
+* 对于01背包问题，需要dp数组对应Weight的值来建立。
+
+https://www.jianshu.com/p/03340080165e
 
 https://zxi.mytechroad.com/blog/sp/knapsack-problem/
