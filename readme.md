@@ -173,6 +173,14 @@ PriorityQueue<Map.Entry<Character, Integer>> pq = new PriorityQueue<>((a, b) -> 
 String s = list.stream().collect(Collectors.joining("/"));
 //过滤， 计数。
 long count1 = Arrays.stream(nums).filter(x -> x==n1).count();
+
+// Map to object, and sort with lamda
+Arrays.stream(nums).mapToObj(x1 -> String.valueOf(x1)).sorted((String s1,String s2) -> {
+            int i = (s1+s2).compareTo(s2+s1);
+            return i * -1;
+        }).collect(Collectors.joining());
+
+list.stream().mapToInt(x -> x).toArray();
 ```
 
 ## Map
@@ -471,6 +479,45 @@ public void morrisTraversal(TreeNode root){
 			}
 		}
 	}
+
+
+    void MorrisTraversal(tNode root) 
+    { 
+        tNode current, pre; 
+  
+        if (root == null) 
+            return; 
+  
+        current = root; 
+        while (current != null) { 
+            if (current.left == null) { 
+                System.out.print(current.data + " "); 
+                current = current.right; 
+            } 
+            else { 
+                /* Find the inorder predecessor of current */
+                pre = current.left; 
+                while (pre.right != null && pre.right != current) 
+                    pre = pre.right; 
+  
+                /* Make current as right child of its inorder predecessor */
+                if (pre.right == null) { 
+                    pre.right = current; 
+                    current = current.left; 
+                } 
+  
+                /* Revert the changes made in the 'if' part to restore the  
+                    original tree i.e., fix the right child of predecessor*/
+                else { 
+                    pre.right = null; 
+                    System.out.print(current.data + " "); 
+                    current = current.right; 
+                } /* End of if condition pre->right == NULL */
+  
+            } /* End of if condition current->left == NULL*/
+  
+        } /* End of while */
+    } 
 
 ```
 
