@@ -63,6 +63,9 @@ Arrays.sort(arr, Collections.reverseOrder());
 
 Integer[] arr2 = new Integer[] {54,432,53,21,43};
 Arrays.sort(arr2, Comparator.reverseOrder());
+
+// create a generic List Array
+List<Integer>[] bucket = new List[nums.length + 1];
 ```
 
 ### Convert Aarry to List
@@ -198,6 +201,13 @@ getOrDefault(Object key, V defaultValue)
 
 putIfAbsent(K key, V value)
 //If the specified key is not already associated with a value (or is mapped to null) associates it with the given value and returns null, else returns the current value.
+
+
+// iterate the map
+// using for-each loop for iteration over Map.entrySet() 
+        for (Map.Entry<String,String> entry : map.entrySet())  
+            System.out.println("Key = " + entry.getKey() + 
+                             ", Value = " + entry.getValue());
 ```
 
 * TreeMap.
@@ -630,3 +640,7 @@ https://github.com/tianyicui/pack/blob/master/V2.pdf
 ## segment tree
 
 https://zxi.mytechroad.com/blog/sp/segment-tree-sp14/
+
+## Time complexity.
+
+https://en.wikipedia.org/wiki/Master_theorem_(analysis_of_algorithms) 
