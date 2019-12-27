@@ -330,7 +330,7 @@ hi = nums.length-1;
 
 while (lo < hi) {
     int mid = (lo+hi) >> 1;
-    if (num[mid] < target) { // find the first item >= target
+    if (num[mid] < target) { // find the first item >= target 这个就是维护lo的一个过程，找到第一个不符合num[mid] < target这个条件的元素。
         lo = mid + 1; 
     } else {
         hi = mid;
@@ -339,7 +339,7 @@ while (lo < hi) {
 
 while (lo < hi) {
     int mid = (lo+hi + 1) >> 1;
-    if (num[mid] > target>) { // find the last item <= target
+    if (num[mid] > target>) { // find the last item <= target，这个和上门的刚好相反。
         hi = mid - 1; 
     } else {
         lo = mid;
