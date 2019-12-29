@@ -44,3 +44,47 @@ But it has two major flaws: so called domino effect and the fact that cache serv
 Distributed Cache should use consistent hash.
 
 LRU cache, hash map with double linked list.
+
+
+## Long polling with Tomcat or Spring.
+
+https://www.baeldung.com/spring-deferred-result
+https://www.nurkiewicz.com/2013/03/deferredresult-asynchronous-processing.html
+
+ListenableFuture could be used in long polling to unblock the http worker thread.
+```java
+ListeningExecutorService service = MoreExecutors.listeningDecorator(Executors.newFixedThreadPool(10));
+ListenableFuture<Explosion> explosion = service.submit(
+    new Callable<Explosion>() {
+      public Explosion call() {
+        return pushBigRedButton();
+      }
+    });
+Futures.addCallback(
+    explosion,
+    new FutureCallback<Explosion>() {
+      // we want this handler to run immediately after we push the big red button!
+      public void onSuccess(Explosion explosion) {
+        walkAwayFrom(explosion);
+      }
+      public void onFailure(Throwable thrown) {
+        battleArchNemesis(); // escaped the explosion!
+      }
+    },
+    service);
+```
+
+Server-sent events with RxJava and SseEmitter
+https://www.nurkiewicz.com/2015/07/server-sent-events-with-rxjava-and.html
+https://howtodoinjava.com/spring-boot2/rest/spring-async-controller-sseemitter/
+https://www.baeldung.com/spring-mvc-sse-streams
+
+Netty 
+
+https://blog.csdn.net/zxhoo/article/details/17709765
+https://netty.io/4.0/api/io/netty/handler/codec/ReplayingDecoder.html
+https://netty.io/wiki/reference-counted-objects.html
+
+Guava
+
+https://github.com/google/guava/wiki/ImmutableCollectionsExplained
