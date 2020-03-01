@@ -644,3 +644,21 @@ https://zxi.mytechroad.com/blog/sp/segment-tree-sp14/
 ## Time complexity.
 
 https://en.wikipedia.org/wiki/Master_theorem_(analysis_of_algorithms) 
+
+## Tomcat webappclassloader
+
+1. 由于classloader 加载类用的是全盘负责委托机制。所谓全盘负责，即是当一个classloader加载一个Class的时候，这个Class所依赖的和引用的所有 Class也由这个classloader负责载入，除非是显式的使用另外一个classloader载入，HelloServlet是由WebappClassLoaderBase加载的，那么Hello也由WebappClassLoaderBase，可以自行打断点验证
+
+2. findLoadedClass0("test.Hello")查看当前类加载器resourceEntries是否缓存
+
+    protected Class<?> findLoadedClass0(String name) { String path = binaryNameToPath(name, true); ResourceEntry entry = resourceEntries.get(path); if (entry != null) { return entry.loadedClass; } return null; } 
+
+3. findLoadedClass("test.Hello") 从native方法中查看类缓存
+
+protected final Class<?> findLoadedClass(String name) { if (!checkName(name)) return null; return findLoadedClass0(name); } private native final Class<?> findLoadedClass0(String name); 
+
+4. ClassLoader javaseLoader = getJavaseClassLoader() 得到的sun.misc.Launcher￼AppClassLoader）clazz = Class.forName(name, false, parent);
+比如以javax开头的类
+6. clazz = findClass(name); 由当前类加载WebappClassLoaderBase加载，从/WEB-INF/classes/test/Hello.class进行查找文件将文件放入byte[],transformer.transform()进行插桩改造byte[],最终defineClass生成class
+7. WebappClassLoaderBase加载不到的类由父类加载器AppClassLoader 记载clazz = Class.forName(name, false, parent);
+8.throw new ClassNotFoundException(name); 第7步中加载不到就抛异常啦
