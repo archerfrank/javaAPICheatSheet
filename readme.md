@@ -662,3 +662,7 @@ protected final Class<?> findLoadedClass(String name) { if (!checkName(name)) re
 6. clazz = findClass(name); 由当前类加载WebappClassLoaderBase加载，从/WEB-INF/classes/test/Hello.class进行查找文件将文件放入byte[],transformer.transform()进行插桩改造byte[],最终defineClass生成class
 7. WebappClassLoaderBase加载不到的类由父类加载器AppClassLoader 记载clazz = Class.forName(name, false, parent);
 8.throw new ClassNotFoundException(name); 第7步中加载不到就抛异常啦
+
+### Spring classloader
+Spring class loader
+https://www.cnblogs.com/binarylei/p/10312531.html
