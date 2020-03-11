@@ -345,9 +345,9 @@ while (lo < hi) {
         lo = mid;
     }
 }
-
-at the end of the loop, lo = hi;
 ```
+at the end of the loop, lo = hi; **如果最后数组中没有符合条件的结果，这个算法最后会停在索引0或者nums.length-1，所以要判断一下最后停的位置是不是要的结果。如果数组中肯定有结果，那就无所谓了。**
+
 
 https://leetcode.com/explore/learn/card/binary-search/
 
