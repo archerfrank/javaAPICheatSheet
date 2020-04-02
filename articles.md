@@ -88,3 +88,7 @@ https://netty.io/wiki/reference-counted-objects.html
 Guava
 
 https://github.com/google/guava/wiki/ImmutableCollectionsExplained
+
+Zookeeper Leader election.
+https://www.cnblogs.com/sweet6/p/10574574.html 
+
