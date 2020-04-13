@@ -666,3 +666,17 @@ protected final Class<?> findLoadedClass(String name) { if (!checkName(name)) re
 ### Spring classloader
 Spring class loader
 https://www.cnblogs.com/binarylei/p/10312531.html
+
+
+## Lessons
+
+MaoJian 对所有人说：
+Spring Cloud Zuul
+MaoJian 对所有人说：
+Server-Side Rendering
+MaoJian 对所有人说：
+Nodejs + vue
+MaoJian 对所有人说：
+Ajax + DOM  = Client-Side Rendering
+MaoJian 对所有人说：
+App -> 动态CDN -> 核心机房 -> LVS/F5 -> SLB(ELB) / Nginx -> API Gateway -> BFF -> Service
