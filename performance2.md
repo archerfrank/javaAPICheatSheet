@@ -221,7 +221,7 @@ Linux 内核给每个进程都提供了一个独立的虚拟地址空间，并�
 
 如何查看内存使用情况
 
-```
+```s
 $ free 
 total used free shared buff/cache available
 Mem: 8169348 263524 6875352 668 1030472 7611064
@@ -235,7 +235,7 @@ Swap: 0 0 0
 * 第五列，buff/cache 是缓存和缓冲区的大小；
 * 最后一列，available 是新进程可用内存的大小。 available 不仅包含未使用内存，还包括了可回收的缓存，所以一般会比未使用内存更大。
 
-```
+```s
 top
 
 PID USER PR NI VIRT RES SHR S %CPU %MEM TIME+ COMMAND 
@@ -249,3 +249,245 @@ PID USER PR NI VIRT RES SHR S %CPU %MEM TIME+ COMMAND
 
 * 第一，虚拟内存通常并不会全部分配物理内存。从上面的输出，你可以发现每个进程的虚拟内存都比常驻内存大得多。
 * 第二，共享内存 SHR 并不一定是共享的，比方说，程序的代码段、非共享的动态链接库，也都算在 SHR 里
+
+## 16 | 基础篇：怎么理解内存中的Buffer和Cache？
+
+1. Buffers 是对原始磁盘块的临时存储，也就是用来缓存磁盘的数据，通常不会特别大（20MB 左右）。这样，内核就可以把分散的写集中起来，统一优化磁盘的写入，比如可以把多次小的写合并成单次大的写等等。
+2. Cached 是从磁盘读取文件的页缓存，也就是用来缓存从文件读取的数据。这样，下次访问这些文件数据时，就可以直接从内存中快速获取，而不需要再次访问缓慢的磁盘。
+3. SReclaimable 是 Slab 的一部分。Slab 包括两部分，其中的可回收部分，用 SReclaimable 记录；而不可回收部分，用 SUnreclaim 记录。
+
+**简单来说，Buffer 是对磁盘数据的缓存，而 Cache 是文件数据的缓存，它们既会用在读请求中，也会用在写请求中。**
+
+从写的角度来说，不仅可以优化磁盘和文件的写入，对应用程序也有好处，应用程序可以在数据真正落盘前，就返回去做其他工作。
+
+从读的角度来说，既可以加速读取那些需要频繁访问的数据，也降低了频繁 I/O 对磁盘的压力。
+
+## 17 | 案例篇：如何利用系统缓存优化程序的运行效率？
+
+**cachestat** 提供了整个操作系统缓存的读写命中情况。
+**cachetop** 提供了每个进程的缓存命中情况。
+
+
+```sh
+
+sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 4052245BD4284CDD
+echo "deb https://repo.iovisor.org/apt/xenial xenial main" | sudo tee /etc/apt/sources.list.d/iovisor.list
+sudo apt-get update
+sudo apt-get install -y bcc-tools libbcc-examples linux-headers-$(uname -r)
+
+
+
+$ cachestat 1 3
+   TOTAL   MISSES     HITS  DIRTIES   BUFFERS_MB  CACHED_MB
+       2        0        2        1           17        279
+       2        0        2        1           17        279
+       2        0        2        1           17        279 
+
+
+
+$ cachetop
+11:58:50 Buffers MB: 258 / Cached MB: 347 / Sort: HITS / Order: ascending
+PID      UID      CMD              HITS     MISSES   DIRTIES  READ_HIT%  WRITE_HIT%
+   13029 root     python                  1        0        0     100.0%       0.0%
+```
+
+Buffers 和 Cache 可以极大提升系统的 I/O 性能。通常，我们用缓存命中率，来衡量缓存的使用效率。命中率越高，表示缓存被利用得越充分，应用程序的性能也就越好。
+
+## 18 | 案例篇：内存泄漏了，我该如何定位和处理？
+
+对普通进程来说，能看到的其实是内核提供的虚拟内存，这些虚拟内存还需要通过页表，由系统映射为物理内存。
+
+当进程通过 malloc() 申请虚拟内存后，系统并不会立即为其分配物理内存，而是在首次访问时，才通过缺页异常陷入内核中分配内存。
+
+为了协调 CPU 与磁盘间的性能差异，Linux 还会使用 Cache 和 Buffer ，分别把文件和磁盘读写的数据缓存到内存中。
+
+
+栈内存由系统自动分配和管理。一旦程序运行超出了这个局部变量的作用域，栈内存就会被系统自动回收，所以不会产生内存泄漏的问题。
+
+堆内存由应用程序自己来分配和管理。除非程序退出，这些堆内存并不会被系统自动释放，而是需要应用程序明确调用库函数 free() 来释放它们。如果应用程序没有正确释放堆内存，就会造成内存泄漏。
+
+```sh
+# install sysstat docker
+sudo apt-get install -y sysstat docker.io
+
+# Install bcc
+sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 4052245BD4284CDD
+echo "deb https://repo.iovisor.org/apt/bionic bionic main" | sudo tee /etc/apt/sources.list.d/iovisor.list
+sudo apt-get update
+sudo apt-get install -y bcc-tools libbcc-examples linux-headers-$(uname -r)
+```
+
+```sh
+
+# 每隔3秒输出一组数据
+$ vmstat 3
+procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
+r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st
+procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
+r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st
+0  0      0 6601824  97620 1098784    0    0     0     0   62  322  0  0 100  0  0
+0  0      0 6601700  97620 1098788    0    0     0     0   57  251  0  0 100  0  0
+0  0      0 6601320  97620 1098788    0    0     0     3   52  306  0  0 100  0  0
+0  0      0 6601452  97628 1098788    0    0     0    27   63  326  0  0 100  0  0
+2  0      0 6601328  97628 1098788    0    0     0    44   52  299  0  0 100  0  0
+0  0      0 6601080  97628 1098792    0    0     0     0   56  285  0  0 100  0  0 
+
+```
+
+未使用内存在逐渐减小，而 buffer 和 cache 基本不变，这说明，系统中使用的内存一直在升高。但这并不能说明有内存泄漏，因为应用程序运行中需要的内存也可能会增大。比如说，程序中如果用了一个动态增长的数组来缓存计算结果，占用内存自然会增长。
+
+当然，memleak 是 bcc 软件包中的一个工具，我们一开始就装好了，执行 /usr/share/bcc/tools/memleak 就可以运行它。
+
+```sh
+# -a 表示显示每个内存分配请求的大小以及地址
+# -p 指定案例应用的PID号
+$ /usr/share/bcc/tools/memleak -a -p $(pidof app)
+WARNING: Couldn't find .text section in /app
+WARNING: BCC can't handle sym look ups for /app
+    addr = 7f8f704732b0 size = 8192
+    addr = 7f8f704772d0 size = 8192
+    addr = 7f8f704712a0 size = 8192
+    addr = 7f8f704752c0 size = 8192
+    32768 bytes in 4 allocations from stack
+        [unknown] [app]
+        [unknown] [app]
+        start_thread+0xdb [libpthread-2.27.so] 
+```
+
+## 19 - 20 | 案例篇：为什么系统的Swap变高了
+
+接下来再看第一个可能的结果，内存回收，也就是系统释放掉可以回收的内存，比如我前面讲过的缓存和缓冲区，就属于可回收内存。它们在内存管理中，通常被叫做文件页（File-backed Page）。
+
+大部分文件页，都可以直接回收，以后有需要时，再从磁盘重新读取就可以了。而那些被应用程序修改过，并且暂时还没写入磁盘的数据（也就是脏页），就得先写入磁盘，然后才能进行内存释放。这些脏页，一般可以通过两种方式写入磁盘。
+
+1. 可以在应用程序中，通过系统调用 fsync ，把脏页同步到磁盘中；
+2. 也可以交给系统，由内核线程 pdflush 负责这些脏页的刷新。
+
+除了文件页外，还有没有其他的内存可以回收呢？比如，应用程序动态分配的堆内存，也就是我们在内存管理中说到的匿名页（**Anonymous Page**），是不是也可以回收呢？我想，你肯定会说，它们很可能还要再次被访问啊，当然不能直接回收了。非常正确，这些内存自然不能直接释放。
+
+Swap 把这些不常访问的内存先写到磁盘中，然后释放这些内存，给其他更需要的进程使用。再次访问这些内存时，重新从磁盘读入内存就可以了。
+
+![](./imgs/c1054f1e71037795c6f290e670b29120.png)
+
+kswapd0 定期扫描内存的使用情况，并根据剩余内存落在这三个阈值的空间位置，进行内存的回收操作。
+1. 剩余内存小于页最小阈值，说明进程可用内存都耗尽了，只有内核才可以分配内存。
+2. 剩余内存落在页最小阈值和页低阈值中间，说明内存压力比较大，剩余内存不多了。这时 kswapd0 会执行内存回收，直到剩余内存大于高阈值为止。
+3. 剩余内存落在页低阈值和页高阈值中间，说明内存有一定压力，但还可以满足新内存请求。
+4. 剩余内存大于页高阈值，说明剩余内存比较多，没有内存压力。
+
+这个页低阈值，其实可以通过内核选项 /proc/sys/vm/min_free_kbytes 来间接设置。**min_free_kbytes** 设置了页最小阈值，而其他两个阈值，都是根据页最小阈值计算生成的，计算方法如下 ：
+
+```s
+pages_low = pages_min*5/4
+pages_high = pages_min*3/2
+```
+
+### swappiness
+
+其实，Linux 提供了一个 /proc/sys/vm/swappiness 选项，用来调整使用 Swap 的积极程度。
+
+swappiness 的范围是 0-100，数值越大，越积极使用 Swap，也就是更倾向于回收匿名页；数值越小，越消极使用 Swap，也就是更倾向于回收文件页。
+
+虽然 swappiness 的范围是 0-100，不过要注意，这并不是内存的百分比，而是调整 Swap 积极程度的权重，即使你把它设置成 0，当剩余内存 + 文件页小于页高阈值时，还是会发生 Swap。
+
+### 开启Swap
+开启 Swap 后，你可以设置 **/proc/sys/vm/min_free_kbytes** ，来调整系统定期回收内存的阈值，也可以设置 **/proc/sys/vm/swappiness** ，来调整文件页和匿名页的回收倾向。
+
+
+要开启 Swap，我们首先要清楚，Linux 本身支持两种类型的 Swap，即 Swap 分区和 Swap 文件。以 Swap 文件为例，在第一个终端中运行下面的命令开启 Swap，我这里配置 Swap 文件的大小为 8GB：
+
+```sh
+
+# 创建Swap文件
+$ fallocate -l 8G /mnt/swapfile
+# 修改权限只有根用户可以访问
+$ chmod 600 /mnt/swapfile
+# 配置Swap文件
+$ mkswap /mnt/swapfile
+# 开启Swap
+$ swapon /mnt/swapfile
+```
+
+```sh
+
+# 写入空设备，实际上只有磁盘的读请求
+$ dd if=/dev/sda1 of=/dev/null bs=1G count=2048
+
+
+# 间隔1秒输出一组数据
+# -r表示显示内存使用情况，-S表示显示Swap使用情况
+$ sar -r -S 1
+04:39:56    kbmemfree   kbavail kbmemused  %memused kbbuffers  kbcached  kbcommit   %commit  kbactive   kbinact   kbdirty
+04:39:57      6249676   6839824   1919632     23.50    740512     67316   1691736     10.22    815156    841868         4
+
+04:39:56    kbswpfree kbswpused  %swpused  kbswpcad   %swpcad
+04:39:57      8388604         0      0.00         0      0.00
+
+04:39:57    kbmemfree   kbavail kbmemused  %memused kbbuffers  kbcached  kbcommit   %commit  kbactive   kbinact   kbdirty
+04:39:58      6184472   6807064   1984836     24.30    772768     67380   1691736     10.22    847932    874224        20
+
+04:39:57    kbswpfree kbswpused  %swpused  kbswpcad   %swpcad
+04:39:58      8388604         0      0.00         0      0.00
+
+…
+
+
+04:44:06    kbmemfree   kbavail kbmemused  %memused kbbuffers  kbcached  kbcommit   %commit  kbactive   kbinact   kbdirty
+04:44:07       152780   6525716   8016528     98.13   6530440     51316   1691736     10.22    867124   6869332         0
+
+04:44:06    kbswpfree kbswpused  %swpused  kbswpcad   %swpcad
+04:44:07      8384508      4096      0.05        52      1.27
+```
+
+这里我还是推荐 proc 文件系统，用来查看进程 Swap 换出的虚拟内存大小，它保存在 /proc/pid/status 中的 VmSwap 中（推荐你执行 man proc 来查询其他字段的含义）。
+
+```sh
+# 按VmSwap使用量对进程排序，输出进程名称、进程ID以及SWAP用量
+$ for file in /proc/*/status ; do awk '/VmSwap|Name|^Pid/{printf $2 " " $3}END{ print ""}' $file; done | sort -k 3 -n -r | head
+dockerd 2226 10728 kB
+docker-containe 2251 8516 kB
+snapd 936 4020 kB
+networkd-dispat 911 836 kB
+polkitd 1004 44 kB
+```
+
+**关闭 Swap**
+
+```
+$ swapoff -a
+```
+
+实际上，关闭 Swap 后再重新打开，也是一种常用的 Swap 空间清理方法，比如：
+
+```
+$ swapoff -a && swapon -a 
+```
+
+通常，降低 Swap 的使用，可以提高系统的整体性能。要怎么做呢？这里，我也总结了几种常见的降低方法。
+1. 禁止 Swap，现在服务器的内存足够大，所以除非有必要，禁用 Swap 就可以了。随着云计算的普及，大部分云平台中的虚拟机都默认禁止 Swap。
+2. 如果实在需要用到 Swap，可以尝试降低 swappiness 的值，减少内存回收时 Swap 的使用倾向。
+3. 响应延迟敏感的应用，如果它们可能在开启 Swap 的服务器中运行，你还可以用库函数 mlock() 或者 mlockall() 锁定内存，阻止它们的内存换出。
+
+## 21 | 套路篇：如何“快准狠”找到系统内存的问题？
+
+首先，你最容易想到的是系统内存使用情况，比如已用内存、剩余内存、共享内存、可用内存、缓存和缓冲区的用量等。
+
+第二类很容易想到的，应该是进程内存使用情况，比如进程的虚拟内存、常驻内存、共享内存以及 Swap 内存等。
+![](./imgs/e28cf90f0b137574bca170984d1e6736.png)
+![](./imgs/8f477035fc4348a1f80bde3117a7dfed.png)
+![](./imgs/52bb55fba133401889206d02c224769b.png)
+
+为了迅速定位内存问题，我通常会先运行几个覆盖面比较大的性能工具，比如 free、top、vmstat、pidstat 等。
+
+1. 先用 free 和 top，查看系统整体的内存使用情况。
+2. 再用 vmstat 和 pidstat，查看一段时间的趋势，从而判断出内存问题的类型。
+3. 最后进行详细分析，比如内存分配分析、缓存 / 缓冲区分析、具体进程的内存使用分析等。
+![](./imgs/d79cd017f0c90b84a36e70a3c5dccffe.png)
+
+常见的优化思路有这么几种。
+1. 最好禁止 Swap。如果必须开启 Swap，降低 swappiness 的值，减少内存回收时 Swap 的使用倾向。
+2. 减少内存的动态分配。比如，可以使用内存池、大页（HugePage）等。
+3. 尽量使用缓存和缓冲区来访问数据。比如，可以使用堆栈明确声明内存空间，来存储需要缓存的数据；或者用 Redis 这类的外部缓存组件，优化数据的访问。
+4. 使用 cgroups 等方式限制进程的内存使用情况。这样，可以确保系统内存不会被异常进程耗尽。
+5. 通过 /proc/pid/oom_adj ，调整核心应用的 oom_score。这样，可以保证即使内存紧张，核心应用也不会被 OOM 杀死。
+
