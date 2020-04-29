@@ -545,3 +545,231 @@ Filesystem      Size  Used Avail Use% Mounted on
 使用率只考虑有没有 I/O，而不考虑 I/O 的大小。换句话说，当使用率是 100% 的时候，磁盘依然有可能接受新的 I/O 请求。
 
 举个例子，在数据库、大量小文件等这类随机读写比较多的场景中，IOPS 更能反映系统的整体性能；而在多媒体等顺序读写较多的场景中，吞吐量才更能反映系统的整体性能。
+
+推荐用性能测试工具 fio ，来测试磁盘的 IOPS、吞吐量以及响应时间等核心指标。但还是那句话，因地制宜，灵活选取。在基准测试时，一定要注意根据应用程序 I/O 的特点，来具体评估指标。
+
+iostat 是最常用的磁盘 I/O 性能观测工具，它提供了每个磁盘的使用率、IOPS、吞吐量等各种常见的性能指标，当然，这些指标实际上来自 /proc/diskstats。
+
+```
+# -d -x表示显示所有磁盘I/O的指标
+$ iostat -d -x 1 
+Device            r/s     w/s     rkB/s     wkB/s   rrqm/s   wrqm/s  %rrqm  %wrqm r_await w_await aqu-sz rareq-sz wareq-sz  svctm  %util 
+loop0            0.00    0.00      0.00      0.00     0.00     0.00   0.00   0.00    0.00    0.00   0.00     0.00     0.00   0.00   0.00 
+loop1            0.00    0.00      0.00      0.00     0.00     0.00   0.00   0.00    0.00    0.00   0.00     0.00     0.00   0.00   0.00 
+sda              0.00    0.00      0.00      0.00     0.00     0.00   0.00   0.00    0.00    0.00   0.00     0.00     0.00   0.00   0.00 
+sdb              0.00    0.00      0.00      0.00     0.00     0.00   0.00   0.00    0.00    0.00   0.00     0.00     0.00   0.00   0.00 
+```
+
+![](./imgs/cff31e715af51c9cb8085ce1bb48318d.png)
+
+这些指标中，你要注意：
+* %util ，就是我们前面提到的磁盘 I/O 使用率；
+* r/s+ w/s ，就是 IOPS；
+* rkB/s+wkB/s ，就是吞吐量；
+* r_await+w_await ，就是响应时间。
+
+
+```
+$ pidstat -d 1 
+13:39:51      UID       PID   kB_rd/s   kB_wr/s kB_ccwr/s iodelay  Command 
+13:39:52      102       916      0.00      4.00      0.00       0  rsyslogd
+
+
+$ iotop
+Total DISK READ :       0.00 B/s | Total DISK WRITE :       7.85 K/s 
+Actual DISK READ:       0.00 B/s | Actual DISK WRITE:       0.00 B/s 
+  TID  PRIO  USER     DISK READ  DISK WRITE  SWAPIN     IO>    COMMAND 
+15055 be/3 root        0.00 B/s    7.85 K/s  0.00 %  0.00 % systemd-journald 
+```
+
+你可以用 iostat 获得磁盘的 I/O 情况，也可以用 pidstat、iotop 等观察进程的 I/O 情况。不过在分析这些性能指标时，你要注意结合读写比例、I/O 类型以及 I/O 大小等，进行综合分析。
+
+## 30 | 套路篇：如何迅速分析出系统I/O的瓶颈在哪里？
+
+![](./imgs/b6d67150e471e1340a6f3c3dc3ba0120.png)
+
+
+1. 第一，在文件系统的原理中，我介绍了查看文件系统容量的工具 df。它既可以查看文件系统数据的空间容量，也可以查看索引节点的容量。至于文件系统缓存，我们通过 /proc/meminfo、/proc/slabinfo 以及 slabtop 等各种来源，观察页缓存、目录项缓存、索引节点缓存以及具体文件系统的缓存情况。
+2. 第二，在磁盘 I/O 的原理中，我们分别用 iostat 和 pidstat 观察了磁盘和进程的 I/O 情况。它们都是最常用的 I/O 性能分析工具。通过 iostat ，我们可以得到磁盘的 I/O 使用率、吞吐量、响应时间以及 IOPS 等性能指标；而通过 pidstat ，则可以观察到进程的 I/O 吞吐量以及块设备 I/O 的延迟等。
+3. 第三，在狂打日志的案例中，我们先用 **top** 查看系统的 CPU 使用情况，发现 iowait 比较高；然后，又用 **iostat** 发现了磁盘的 I/O 使用率瓶颈，并用 **pidstat** 找出了大量 I/O 的进程；最后，通过 **strace** 和 **lsof**，我们找出了问题进程正在读写的文件，并最终锁定性能问题的来源——原来是进程在狂打日志。
+4. 第四，在磁盘 I/O 延迟的单词热度案例中，我们同样先用 top、iostat ，发现磁盘有 I/O 瓶颈，并用 pidstat 找出了大量 I/O 的进程。可接下来，想要照搬上次操作的我们失败了。在随后的 strace 命令中，我们居然没看到 write 系统调用。于是，我们换了一个思路，用新工具 filetop 和 opensnoop ，从内核中跟踪系统调用，最终找出瓶颈的来源。
+5. 最后，在 MySQL 和 Redis 的案例中，同样的思路，我们先用 top、iostat 以及 pidstat ，确定并找出 I/O 性能问题的瓶颈来源，它们正是 mysqld 和 redis-server。随后，我们又用 strace+lsof 找出了它们正在读写的文件。关于 MySQL 案例，根据 mysqld 正在读写的文件路径，再结合 MySQL 数据库引擎的原理，我们不仅找出了数据库和数据表的名称，还进一步发现了慢查询的问题，最终通过优化索引解决了性能瓶颈。至于 Redis 案例，根据 redis-server 读写的文件，以及正在进行网络通信的 TCP Socket，再结合 Redis 的工作原理，我们发现 Redis 持久化选项配置有问题；从 TCP Socket 通信的数据中，我们还发现了客户端的不合理行为。于是，我们修改 Redis 配置选项，并优化了客户端使用 Redis 的方式，从而减少网络通信次数，解决性能问题。
+
+```
+
+# 按1切换到每个CPU的使用情况 
+$ top 
+top - 14:43:43 up 1 day,  1:39,  2 users,  load average: 2.48, 1.09, 0.63 
+Tasks: 130 total,   2 running,  74 sleeping,   0 stopped,   0 zombie 
+%Cpu0  :  0.7 us,  6.0 sy,  0.0 ni,  0.7 id, 92.7 wa,  0.0 hi,  0.0 si,  0.0 st 
+%Cpu1  :  0.0 us,  0.3 sy,  0.0 ni, 92.3 id,  7.3 wa,  0.0 hi,  0.0 si,  0.0 st 
+KiB Mem :  8169308 total,   747684 free,   741336 used,  6680288 buff/cache 
+KiB Swap:        0 total,        0 free,        0 used.  7113124 avail Mem 
+
+  PID USER      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND 
+18940 root      20   0  656108 355740   5236 R   6.3  4.4   0:12.56 python 
+1312 root      20   0  236532  24116   9648 S   0.3  0.3   9:29.80 python3 
+
+
+# -d表示显示I/O性能指标，-x表示显示扩展统计（即所有I/O指标） 
+$ iostat -x -d 1 
+Device            r/s     w/s     rkB/s     wkB/s   rrqm/s   wrqm/s  %rrqm  %wrqm r_await w_await aqu-sz rareq-sz wareq-sz  svctm  %util 
+loop0            0.00    0.00      0.00      0.00     0.00     0.00   0.00   0.00    0.00    0.00   0.00     0.00     0.00   0.00   0.00 
+sdb              0.00    0.00      0.00      0.00     0.00     0.00   0.00   0.00    0.00    0.00   0.00     0.00     0.00   0.00   0.00 
+sda              0.00   64.00      0.00  32768.00     0.00     0.00   0.00   0.00    0.00 7270.44 1102.18     0.00   512.00  15.50  99.20
+
+
+$ pidstat -d 1 
+
+15:08:35      UID       PID   kB_rd/s   kB_wr/s kB_ccwr/s iodelay  Command 
+15:08:36        0     18940      0.00  45816.00      0.00      96  python 
+
+15:08:36      UID       PID   kB_rd/s   kB_wr/s kB_ccwr/s iodelay  Command 
+15:08:37        0       354      0.00      0.00      0.00     350  jbd2/sda1-8 
+15:08:37        0     18940      0.00  46000.00      0.00      96  python 
+15:08:37        0     20065      0.00      0.00      0.00    1503  kworker/u4:2 
+
+
+
+$ strace -fp 18940 
+strace: Process 18940 attached 
+...
+mmap(NULL, 314576896, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7f0f7aee9000 
+mmap(NULL, 314576896, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7f0f682e8000 
+write(3, "2018-12-05 15:23:01,709 - __main"..., 314572844 
+) = 314572844 
+munmap(0x7f0f682e8000, 314576896)       = 0 
+write(3, "\n", 1)                       = 1 
+munmap(0x7f0f7aee9000, 314576896)       = 0 
+close(3)                                = 0 
+stat("/tmp/logtest.txt.1", {st_mode=S_IFREG|0644, st_size=943718535, ...}) = 0 
+
+
+
+$ lsof -p 18940 
+COMMAND   PID USER   FD   TYPE DEVICE  SIZE/OFF    NODE NAME 
+python  18940 root  cwd    DIR   0,50      4096 1549389 / 
+python  18940 root  rtd    DIR   0,50      4096 1549389 / 
+… 
+python  18940 root    2u   CHR  136,0       0t0       3 /dev/pts/0 
+python  18940 root    3w   REG    8,1 117944320     303 /tmp/logtest.txt 
+
+我们可以给 lsof 命令加上 -i 选项，找出 TCP socket 对应的 TCP 连接信息。
+```
+
+
+![](./imgs/6f26fa18a73458764fcda00212006698.png)
+![](./imgs/c48b6664c6d334695ed881d5047446e9.png)
+![](./imgs/1802a35475ee2755fb45aec55ed2d98a.png)
+
+
+1. 先用 iostat 发现磁盘 I/O 性能瓶颈；
+2. 再借助 pidstat ，定位出导致瓶颈的进程；
+3. 随后分析进程的 I/O 行为；
+4. 最后，结合应用程序的原理，分析这些 I/O 的来源。
+
+## 31 | 套路篇：磁盘 I/O 性能优化的几个思路
+fio（Flexible I/O Tester）正是最常用的文件系统和磁盘 I/O 性能基准测试工具。
+
+```
+
+# 随机读
+fio -name=randread -direct=1 -iodepth=64 -rw=randread -ioengine=libaio -bs=4k -size=1G -numjobs=1 -runtime=1000 -group_reporting -filename=/dev/sdb
+
+# 随机写
+fio -name=randwrite -direct=1 -iodepth=64 -rw=randwrite -ioengine=libaio -bs=4k -size=1G -numjobs=1 -runtime=1000 -group_reporting -filename=/dev/sdb
+
+# 顺序读
+fio -name=read -direct=1 -iodepth=64 -rw=read -ioengine=libaio -bs=4k -size=1G -numjobs=1 -runtime=1000 -group_reporting -filename=/dev/sdb
+
+# 顺序写
+fio -name=write -direct=1 -iodepth=64 -rw=write -ioengine=libaio -bs=4k -size=1G -numjobs=1 -runtime=1000 -group_reporting -filename=/dev/sdb 
+```
+
+```
+
+read: (g=0): rw=read, bs=(R) 4096B-4096B, (W) 4096B-4096B, (T) 4096B-4096B, ioengine=libaio, iodepth=64
+fio-3.1
+Starting 1 process
+Jobs: 1 (f=1): [R(1)][100.0%][r=16.7MiB/s,w=0KiB/s][r=4280,w=0 IOPS][eta 00m:00s]
+read: (groupid=0, jobs=1): err= 0: pid=17966: Sun Dec 30 08:31:48 2018
+   read: IOPS=4257, BW=16.6MiB/s (17.4MB/s)(1024MiB/61568msec)
+    slat (usec): min=2, max=2566, avg= 4.29, stdev=21.76
+    clat (usec): min=228, max=407360, avg=15024.30, stdev=20524.39
+     lat (usec): min=243, max=407363, avg=15029.12, stdev=20524.26
+    clat percentiles (usec):
+     |  1.00th=[   498],  5.00th=[  1020], 10.00th=[  1319], 20.00th=[  1713],
+     | 30.00th=[  1991], 40.00th=[  2212], 50.00th=[  2540], 60.00th=[  2933],
+     | 70.00th=[  5407], 80.00th=[ 44303], 90.00th=[ 45351], 95.00th=[ 45876],
+     | 99.00th=[ 46924], 99.50th=[ 46924], 99.90th=[ 48497], 99.95th=[ 49021],
+     | 99.99th=[404751]
+   bw (  KiB/s): min= 8208, max=18832, per=99.85%, avg=17005.35, stdev=998.94, samples=123
+   iops        : min= 2052, max= 4708, avg=4251.30, stdev=249.74, samples=123
+  lat (usec)   : 250=0.01%, 500=1.03%, 750=1.69%, 1000=2.07%
+  lat (msec)   : 2=25.64%, 4=37.58%, 10=2.08%, 20=0.02%, 50=29.86%
+  lat (msec)   : 100=0.01%, 500=0.02%
+  cpu          : usr=1.02%, sys=2.97%, ctx=33312, majf=0, minf=75
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.1%, 8=0.1%, 16=0.1%, 32=0.1%, >=64=100.0%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwt: total=262144,0,0, short=0,0,0, dropped=0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=16.6MiB/s (17.4MB/s), 16.6MiB/s-16.6MiB/s (17.4MB/s-17.4MB/s), io=1024MiB (1074MB), run=61568-61568msec
+
+Disk stats (read/write):
+  sdb: ios=261897/0, merge=0/0, ticks=3912108/0, in_queue=3474336, util=90.09% 
+```
+
+
+先来看刚刚提到的前三个参数。事实上，slat、clat、lat 都是指 I/O 延迟（latency）。不同之处在于：
+1. slat ，是指从 I/O 提交到实际执行 I/O 的时长（Submission latency）；
+2. clat ，是指从 I/O 提交到 I/O 完成的时长（Completion latency）；
+3. 而 lat ，指的是从 fio 创建 I/O 到 I/O 完成的总时长。
+
+这里需要注意的是，对同步 I/O 来说，由于 I/O 提交和 I/O 完成是一个动作，所以 slat 实际上就是 I/O 完成的时间，而 clat 是 0。而从示例可以看到，使用异步 I/O（libaio）时，lat 近似等于 slat + clat 之和。
+
+幸运的是，fio 支持 I/O 的重放。借助前面提到过的 blktrace，再配合上 fio，就可以实现对应用程序 I/O 模式的基准测试。你需要先用 blktrace ，记录磁盘设备的 I/O 访问情况；然后使用 fio ，重放 blktrace 的记录。
+
+```
+
+# 使用blktrace跟踪磁盘I/O，注意指定应用程序正在操作的磁盘
+$ blktrace /dev/sdb
+
+# 查看blktrace记录的结果
+# ls
+sdb.blktrace.0  sdb.blktrace.1
+
+# 将结果转化为二进制文件
+$ blkparse sdb -d sdb.bin
+
+# 使用fio重放日志
+$ fio --name=replay --filename=/dev/sdb --direct=1 --read_iolog=sdb.bin 
+```
+
+**应用程序优化**
+
+1. 第一，可以用追加写代替随机写，减少寻址开销，加快 I/O 写的速度。
+2. 第二，可以借助缓存 I/O ，充分利用系统缓存，降低实际 I/O 的次数。
+3. 第三，可以在应用程序内部构建自己的缓存，或者用 Redis 这类外部缓存系统。这样，一方面，能在应用程序内部，控制缓存的数据和生命周期；另一方面，也能降低其他应用程序使用缓存对自身的影响。
+4. 第四，在需要频繁读写同一块磁盘空间时，可以用 mmap 代替 read/write，减少内存的拷贝次数。
+5. 第五，在需要同步写的场景中，尽量将写请求合并，而不是让每个请求都同步写入磁盘，即可以用 fsync() 取代 O_SYNC。
+6. 第六，在多个应用程序共享相同磁盘时，为了保证 I/O 不被某个应用完全占用，推荐你使用 cgroups 的 I/O 子系统，来限制进程 / 进程组的 IOPS 以及吞吐量。
+
+
+## 答疑
+
+首先我们来看阻塞和非阻塞 I/O。根据应用程序是否阻塞自身运行，可以把 I/O 分为阻塞 I/O 和非阻塞 I/O。
+
+所谓阻塞 I/O，是指应用程序在执行 I/O 操作后，如果没有获得响应，就会阻塞当前线程，不能执行其他任务。
+
+所谓非阻塞 I/O，是指应用程序在执行 I/O 操作后，不会阻塞当前的线程，可以继续执行其他的任务。
+
+再来看同步 I/O 和异步 I/O。根据 I/O 响应的通知方式的不同，可以把文件 I/O 分为同步 I/O 和异步 I/O。
+
+所谓同步 I/O，是指收到 I/O 请求后，系统不会立刻响应应用程序；等到处理完成，系统才会通过系统调用的方式，告诉应用程序 I/O 结果。
+
+所谓异步 I/O，是指收到 I/O 请求后，系统会先告诉应用程序 I/O 请求已经收到，随后再去异步处理；等处理完成后，系统再通过事件通知的方式，告诉应用程序结果。
+
+你可以看出，阻塞 / 非阻塞和同步 / 异步，其实就是两个不同角度的 I/O 划分方式。它们描述的对象也不同，阻塞 / 非阻塞针对的是 I/O 调用者（即应用程序），而同步 / 异步针对的是 I/O 执行者（即系统）。
