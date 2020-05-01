@@ -550,7 +550,7 @@ Filesystem      Size  Used Avail Use% Mounted on
 
 iostat 是最常用的磁盘 I/O 性能观测工具，它提供了每个磁盘的使用率、IOPS、吞吐量等各种常见的性能指标，当然，这些指标实际上来自 /proc/diskstats。
 
-```
+```s
 # -d -x表示显示所有磁盘I/O的指标
 $ iostat -d -x 1 
 Device            r/s     w/s     rkB/s     wkB/s   rrqm/s   wrqm/s  %rrqm  %wrqm r_await w_await aqu-sz rareq-sz wareq-sz  svctm  %util 
@@ -569,7 +569,7 @@ sdb              0.00    0.00      0.00      0.00     0.00     0.00   0.00   0.0
 * r_await+w_await ，就是响应时间。
 
 
-```
+```s
 $ pidstat -d 1 
 13:39:51      UID       PID   kB_rd/s   kB_wr/s kB_ccwr/s iodelay  Command 
 13:39:52      102       916      0.00      4.00      0.00       0  rsyslogd
@@ -595,8 +595,7 @@ Actual DISK READ:       0.00 B/s | Actual DISK WRITE:       0.00 B/s
 4. 第四，在磁盘 I/O 延迟的单词热度案例中，我们同样先用 top、iostat ，发现磁盘有 I/O 瓶颈，并用 pidstat 找出了大量 I/O 的进程。可接下来，想要照搬上次操作的我们失败了。在随后的 strace 命令中，我们居然没看到 write 系统调用。于是，我们换了一个思路，用新工具 filetop 和 opensnoop ，从内核中跟踪系统调用，最终找出瓶颈的来源。
 5. 最后，在 MySQL 和 Redis 的案例中，同样的思路，我们先用 top、iostat 以及 pidstat ，确定并找出 I/O 性能问题的瓶颈来源，它们正是 mysqld 和 redis-server。随后，我们又用 strace+lsof 找出了它们正在读写的文件。关于 MySQL 案例，根据 mysqld 正在读写的文件路径，再结合 MySQL 数据库引擎的原理，我们不仅找出了数据库和数据表的名称，还进一步发现了慢查询的问题，最终通过优化索引解决了性能瓶颈。至于 Redis 案例，根据 redis-server 读写的文件，以及正在进行网络通信的 TCP Socket，再结合 Redis 的工作原理，我们发现 Redis 持久化选项配置有问题；从 TCP Socket 通信的数据中，我们还发现了客户端的不合理行为。于是，我们修改 Redis 配置选项，并优化了客户端使用 Redis 的方式，从而减少网络通信次数，解决性能问题。
 
-```
-
+```s
 # 按1切换到每个CPU的使用情况 
 $ top 
 top - 14:43:43 up 1 day,  1:39,  2 users,  load average: 2.48, 1.09, 0.63 
@@ -671,8 +670,7 @@ python  18940 root    3w   REG    8,1 117944320     303 /tmp/logtest.txt
 ## 31 | 套路篇：磁盘 I/O 性能优化的几个思路
 fio（Flexible I/O Tester）正是最常用的文件系统和磁盘 I/O 性能基准测试工具。
 
-```
-
+```s
 # 随机读
 fio -name=randread -direct=1 -iodepth=64 -rw=randread -ioengine=libaio -bs=4k -size=1G -numjobs=1 -runtime=1000 -group_reporting -filename=/dev/sdb
 
@@ -686,8 +684,7 @@ fio -name=read -direct=1 -iodepth=64 -rw=read -ioengine=libaio -bs=4k -size=1G -
 fio -name=write -direct=1 -iodepth=64 -rw=write -ioengine=libaio -bs=4k -size=1G -numjobs=1 -runtime=1000 -group_reporting -filename=/dev/sdb 
 ```
 
-```
-
+```s
 read: (g=0): rw=read, bs=(R) 4096B-4096B, (W) 4096B-4096B, (T) 4096B-4096B, ioengine=libaio, iodepth=64
 fio-3.1
 Starting 1 process
@@ -773,3 +770,290 @@ $ fio --name=replay --filename=/dev/sdb --direct=1 --read_iolog=sdb.bin
 所谓异步 I/O，是指收到 I/O 请求后，系统会先告诉应用程序 I/O 请求已经收到，随后再去异步处理；等处理完成后，系统再通过事件通知的方式，告诉应用程序结果。
 
 你可以看出，阻塞 / 非阻塞和同步 / 异步，其实就是两个不同角度的 I/O 划分方式。它们描述的对象也不同，阻塞 / 非阻塞针对的是 I/O 调用者（即应用程序），而同步 / 异步针对的是 I/O 执行者（即系统）。
+
+# Network
+
+## 33-34 | 关于 Linux 网络，你必须知道这些
+
+### 网络模型
+
+* 应用层，负责为应用程序提供统一的接口。
+* 表示层，负责把数据转换成兼容接收系统的格式。
+* 会话层，负责维护计算机之间的通信连接。
+* 传输层，负责为数据加上传输表头，形成数据包。
+* 网络层，负责数据的路由和转发。
+* 数据链路层，负责 MAC 寻址、错误侦测和改错。
+* 物理层，负责在物理网络中传输数据帧
+
+TCP/IP 模型，把网络互联的框架分为应用层、传输层、网络层、网络接口层等四层，其中，
+
+* 应用层，负责向用户提供一组应用程序，比如 HTTP、FTP、DNS 等。
+* 传输层，负责端到端的通信，比如 TCP、UDP 等。
+* 网络层，负责网络包的封装、寻址和路由，比如 IP、ICMP 等。
+* 网络接口层，负责网络包在物理网络中的传输，比如 MAC 寻址、错误侦测以及通过网卡传输网络帧等。
+
+![](./imgs/f2dbfb5500c2aa7c47de6216ee7098bd.png)
+
+以通过 TCP 协议通信的网络包为例，通过下面这张图，我们可以看到，应用程序数据在每个层的封装格式。
+
+![](./imgs/c8dfe80acc44ba1aa9df327c54349e79.png)
+
+* 传输层在应用程序数据前面增加了 TCP 头；
+* 网络层在 TCP 数据包前增加了 IP 头；
+* 而网络接口层，又在 IP 数据包前后分别增加了帧头和帧尾。
+
+网络接口配置的最大传输单元（MTU），就规定了最大的 IP 包大小。在我们最常用的以太网中，**MTU 默认值是 1500**（这也是 Linux 的默认值）。
+
+![](./imgs/c7b5b16539f90caabb537362ee7c27ac.png)
+
+* 最上层的应用程序，需要通过系统调用，来跟套接字接口进行交互；
+* 套接字的下面，就是我们前面提到的传输层、网络层和网络接口层；
+* 最底层，则是网卡驱动程序以及物理网卡设备。
+
+### 网络包的接收流程
+
+1. 当一个网络帧到达网卡后，网卡会通过 DMA 方式，把这个网络包放到收包队列中；然后通过硬中断，告诉中断处理程序已经收到了网络包。
+2. 接着，网卡中断处理程序会为网络帧分配内核数据结构（sk_buff），并将其拷贝到 sk_buff 缓冲区中；然后再通过软中断，通知内核收到了新的网络帧。
+3. 接下来，内核协议栈从缓冲区中取出网络帧，并通过网络协议栈，从下到上逐层处理这个网络帧。
+4. 最后，应用程序就可以使用 Socket 接口，读取到新接收到的数据了。
+
+![](./imgs/3af644b6d463869ece19786a4634f765.png)
+
+### 网络包的发送流程
+
+1. 首先，应用程序调用 Socket API（比如 sendmsg）发送网络包。
+2. 由于这是一个系统调用，所以会陷入到内核态的套接字层中。套接字层会把数据包放到 Socket 发送缓冲区中。
+3. 接下来，网络协议栈从 Socket 发送缓冲区中，取出数据包；再按照 TCP/IP 栈，从上到下逐层处理。比如，传输层和网络层，分别为其增加 TCP 头和 IP 头，执行路由查找确认下一跳的 IP，并按照 MTU 大小进行分片。
+4. 分片后的网络包，再送到网络接口层，进行物理地址寻址，以找到下一跳的 MAC 地址。然后添加帧头和帧尾，放到发包队列中。这一切完成后，会有软中断通知驱动程序：发包队列中有新的网络帧需要发送。
+5. 最后，驱动程序通过 DMA ，从发包队列中读出网络帧，并通过物理网卡把它发送出去。
+
+### 性能指标
+实际上，我们通常用 **带宽、吞吐量、延时、PPS（Packet Per Second）** 等指标衡量网络的性能。
+1. 带宽，表示链路的最大传输速率，单位通常为 b/s （比特 / 秒）。
+2. 吞吐量，表示单位时间内成功传输的数据量，单位通常为 b/s（比特 / 秒）或者 B/s（字节 / 秒）。吞吐量受带宽限制，而吞吐量 / 带宽，也就是该网络的使用率。
+3. 延时，表示从网络请求发出后，一直到收到远端响应，所需要的时间延迟。在不同场景中，这一指标可能会有不同含义。比如，它可以表示，建立连接需要的时间（比如 TCP 握手延时），或一个数据包往返所需的时间（比如 RTT）。
+4. PPS，是 Packet Per Second（包 / 秒）的缩写，表示以网络包为单位的传输速率。PPS 通常用来评估网络的转发能力，比如硬件交换机，通常可以达到线性转发（即 PPS 可以达到或者接近理论最大值）。而基于 Linux 服务器的转发，则容易受网络包大小的影响。
+
+除了这些指标，网络的 **可用性（网络能否正常通信）、并发连接数（TCP 连接数量）、丢包率（丢包百分比）、重传率（重新传输的网络包比例）等** 也是常用的性能指标。
+
+
+以网络接口 eth0 为例，你可以运行下面的两个命令，查看它的配置和状态：
+
+```s
+$ ifconfig eth0
+eth0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST> mtu 1500
+      inet 10.240.0.30 netmask 255.240.0.0 broadcast 10.255.255.255
+      inet6 fe80::20d:3aff:fe07:cf2a prefixlen 64 scopeid 0x20<link>
+      ether 78:0d:3a:07:cf:3a txqueuelen 1000 (Ethernet)
+      RX packets 40809142 bytes 9542369803 (9.5 GB)
+      RX errors 0 dropped 0 overruns 0 frame 0
+      TX packets 32637401 bytes 4815573306 (4.8 GB)
+      TX errors 0 dropped 0 overruns 0 carrier 0 collisions 0
+​
+$ ip -s addr show dev eth0
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
+  link/ether 78:0d:3a:07:cf:3a brd ff:ff:ff:ff:ff:ff
+  inet 10.240.0.30/12 brd 10.255.255.255 scope global eth0
+      valid_lft forever preferred_lft forever
+  inet6 fe80::20d:3aff:fe07:cf2a/64 scope link
+      valid_lft forever preferred_lft forever
+  RX: bytes packets errors dropped overrun mcast
+   9542432350 40809397 0       0       0       193
+  TX: bytes packets errors dropped carrier collsns
+   4815625265 32637658 0       0       0       0
+```
+
+* 第一，网络接口的状态标志。ifconfig 输出中的 RUNNING ，或 ip 输出中的 LOWER_UP ，都表示物理网络是连通的，即网卡已经连接到了交换机或者路由器中。如果你看不到它们，通常表示网线被拔掉了。
+* 第二，MTU 的大小。MTU 默认大小是 1500，根据网络架构的不同（比如是否使用了 VXLAN 等叠加网络），你可能需要调大或者调小 MTU 的数值。
+* 第三，网络接口的 IP 地址、子网以及 MAC 地址。这些都是保障网络功能正常工作所必需的，你需要确保配置正确。
+* 第四，网络收发的字节数、包数、错误数以及丢包情况，特别是 TX 和 RX 部分的 errors、dropped、overruns、carrier 以及 collisions 等指标不为 0 时，通常表示出现了网络 I/O 问题。其中：
+    1. errors 表示发生错误的数据包数，比如校验错误、帧同步错误等；
+    2. dropped 表示丢弃的数据包数，即数据包已经收到了 Ring Buffer，但因为内存不足等原因丢包；
+    3. overruns 表示超限数据包数，即网络 I/O 速度过快，导致 Ring Buffer 中的数据包来不及处理（队列满）而导致的丢包；
+    4. carrier 表示发生 carrirer 错误的数据包数，比如双工模式不匹配、物理电缆出现问题等；
+    5. collisions 表示碰撞数据包数。
+
+### 套接字信息
+
+```s
+# head -n 3 表示只显示前面3行
+# -l 表示只显示监听套接字
+# -n 表示显示数字地址和端口(而不是名字)
+# -p 表示显示进程信息
+$ netstat -nlp | head -n 3
+Active Internet connections (only servers)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State       PID/Program name
+tcp        0      0 127.0.0.53:53           0.0.0.0:*               LISTEN      840/systemd-resolve
+
+# -l 表示只显示监听套接字
+# -t 表示只显示 TCP 套接字
+# -n 表示显示数字地址和端口(而不是名字)
+# -p 表示显示进程信息
+$ ss -ltnp | head -n 3
+State    Recv-Q    Send-Q        Local Address:Port        Peer Address:Port
+LISTEN   0         128           127.0.0.53%lo:53               0.0.0.0:*        users:(("systemd-resolve",pid=840,fd=13))
+LISTEN   0         128                 0.0.0.0:22               0.0.0.0:*        users:(("sshd",pid=1459,fd=3))
+```
+其中，**接收队列（Recv-Q）和发送队列（Send-Q）需要你特别关注**，它们通常应该是 0。当你发现它们不是 0 时，说明有网络包的堆积发生。当然还要注意，在不同套接字状态下，它们的含义不同。
+
+* 当套接字处于连接状态（Established）时，Recv-Q 表示套接字缓冲还没有被应用程序取走的字节数（即接收队列长度）。而 Send-Q 表示还没有被远端主机确认的字节数（即发送队列长度）。
+
+* 当套接字处于监听状态（Listening）时，Recv-Q 表示全连接队列的长度。而 Send-Q 表示全连接队列的最大长度。
+
+
+所谓全连接，是指服务器收到了客户端的 ACK，完成了 TCP 三次握手，然后就会把这个连接挪到全连接队列中。这些全连接中的套接字，还需要被 accept() 系统调用取走，服务器才可以开始真正处理客户端的请求。
+
+与全连接队列相对应的，还有一个半连接队列。所谓半连接是指还没有完成 TCP 三次握手的连接，连接只进行了一半。服务器收到了客户端的 SYN 包后，就会把这个连接放到半连接队列中，然后再向客户端发送 SYN+ACK 包。
+
+```s
+$ netstat -s
+...
+Tcp:
+    3244906 active connection openings
+    23143 passive connection openings
+    115732 failed connection attempts
+    2964 connection resets received
+    1 connections established
+    13025010 segments received
+    17606946 segments sent out
+    44438 segments retransmitted
+    42 bad segments received
+    5315 resets sent
+    InCsumErrors: 42
+...
+
+$ ss -s
+Total: 186 (kernel 1446)
+TCP:   4 (estab 1, closed 0, orphaned 0, synrecv 0, timewait 0/0), ports 0
+
+Transport Total     IP        IPv6
+*    1446      -         -
+RAW    2         1         1
+UDP    2         2         0
+TCP    4         3         1
+...
+```
+
+### 网络吞吐和 PPS
+
+给 sar 增加 -n 参数就可以查看网络的统计信息，比如网络接口（DEV）、网络接口错误（EDEV）、TCP、UDP、ICMP 等等。执行下面的命令，你就可以得到网络接口统计信息：
+
+```s
+
+# 数字1表示每隔1秒输出一组数据
+$ sar -n DEV 1
+Linux 4.15.0-1035-azure (ubuntu)   01/06/19   _x86_64_  (2 CPU)
+
+13:21:40        IFACE   rxpck/s   txpck/s    rxkB/s    txkB/s   rxcmp/s   txcmp/s  rxmcst/s   %ifutil
+13:21:41         eth0     18.00     20.00      5.79      4.25      0.00      0.00      0.00      0.00
+13:21:41      docker0      0.00      0.00      0.00      0.00      0.00      0.00      0.00      0.00
+13:21:41           lo      0.00      0.00      0.00      0.00      0.00      0.00      0.00      0.00
+```
+
+* rxpck/s 和 txpck/s 分别是接收和发送的 PPS，单位为包 / 秒。
+* rxkB/s 和 txkB/s 分别是接收和发送的吞吐量，单位是 KB/ 秒。
+* rxcmp/s 和 txcmp/s 分别是接收和发送的压缩数据包数，单位是包 / 秒。
+* %ifutil 是网络接口的使用率，即半双工模式下为 (rxkB/s+txkB/s)/Bandwidth，而全双工模式下为 max(rxkB/s, txkB/s)/Bandwidth。
+
+其中，Bandwidth 可以用 ethtool 来查询
+
+```s
+$ ethtool eth0 | grep Speed
+  Speed: 1000Mb/s
+```
+
+### 连通性和延时
+```s
+# -c3表示发送三次ICMP包后停止
+$ ping -c3 114.114.114.114
+PING 114.114.114.114 (114.114.114.114) 56(84) bytes of data.
+64 bytes from 114.114.114.114: icmp_seq=1 ttl=54 time=244 ms
+64 bytes from 114.114.114.114: icmp_seq=2 ttl=47 time=244 ms
+64 bytes from 114.114.114.114: icmp_seq=3 ttl=67 time=244 ms
+
+--- 114.114.114.114 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2001ms
+rtt min/avg/max/mdev = 244.023/244.070/244.105/0.034 ms
+```
+
+我们通常使用带宽、吞吐量、延时等指标，来衡量网络的性能；相应的，你可以用 **ifconfig、netstat、ss、sar、ping** 等工具，来查看这些网络的性能指标。
+
+## 35 | 基础篇：C10K 和 C1000K 回顾
+C10K 和 C1000K 的首字母 C 是 Client 的缩写。C10K 就是单机同时处理 1 万个请求（并发连接 1 万）的问题，而 C1000K 也就是单机支持处理 100 万个请求（并发连接 100 万）的问题。
+### C10K
+详细了解前，我先来讲两种 I/O 事件通知的方式：**水平触发和边缘触发**，它们常用在套接字接口的文件描述符中
+
+* 水平触发：只要文件描述符可以非阻塞地执行 I/O ，就会触发通知。也就是说，应用程序可以随时检查文件描述符的状态，然后再根据状态，进行 I/O 操作。
+* 边缘触发：只有在文件描述符的状态发生改变（也就是 I/O 请求达到）时，才发送一次通知。这时候，应用程序需要尽可能多地执行 I/O，直到无法继续读写，才可以停止。如果 I/O 没执行完，或者因为某种原因没来得及处理，那么这次通知也就丢失了。
+
+#### 第一种，使用非阻塞 I/O 和水平触发通知，比如使用 select 或者 poll。
+
+这种方式的最大优点，是对应用程序比较友好，它的 API 非常简单。
+
+但是，应用软件使用 select 和 poll 时，需要对这些文件描述符列表进行轮询，这样，请求数多的时候就会比较耗时。并且，select 和 poll 还有一些其他的限制。
+
+应用程序每次调用 select 和 poll 时，还需要把文件描述符的集合，从用户空间传入内核空间，由内核修改后，再传出到用户空间中。这一来一回的内核空间与用户空间切换，也增加了处理成本。
+
+#### 第二种，使用非阻塞 I/O 和边缘触发通知，比如 epoll。
+
+1. epoll 使用红黑树，在内核中管理文件描述符的集合，这样，就不需要应用程序在每次操作时都传入、传出这个集合。
+2. epoll 使用事件驱动的机制，只关注有 I/O 事件发生的文件描述符，不需要轮询扫描整个集合。
+
+不过要注意，epoll 是在 Linux 2.6 中才新增的功能（2.4 虽然也有，但功能不完善）。由于边缘触发只在文件描述符可读或可写事件发生时才通知，那么应用程序就需要尽可能多地执行 I/O，并要处理更多的异常事件。
+
+#### 第三种，使用异步 I/O（Asynchronous I/O，简称为 AIO）
+
+### 工作模型优化
+
+* 第一种，主进程 + 多个 worker 子进程，这也是最常用的一种模型。
+这种方法的一个通用工作模式就是：主进程执行 bind() + listen() 后，创建多个子进程；然后，在每个子进程中，都通过 accept() 或 epoll_wait() ，来处理相同的套接字。
+
+比如，最常用的反向代理服务器 Nginx 就是这么工作的。
+
+![](./imgs/451a24fb8f096729ed6822b1615b097e.png)
+
+这里要注意，accept() 和 epoll_wait() 调用，还存在一个惊群的问题。换句话说，当网络 I/O 事件发生时，多个进程被同时唤醒，但实际上只有一个进程来响应这个事件，其他被唤醒的进程都会重新休眠。
+
+为了避免惊群问题， Nginx 在每个 worker 进程中，都增加一个了全局锁（accept_mutex）。这些 worker 进程需要首先竞争到锁，只有竞争到锁的进程，才会加入到 epoll 中，这样就确保只有一个 worker 子进程被唤醒。
+
+主线程负责套接字初始化和子线程状态的管理，而子线程则负责实际的请求处理。由于线程的调度和切换成本比较低，实际上你可以进一步把 epoll_wait() 都放到主线程中，保证每次事件都只唤醒主线程，而子线程只需要负责后续的请求处理。
+
+* 第二种，监听到相同端口的多进程模型。
+
+在这种方式下，所有的进程都监听相同的接口，并且开启 SO_REUSEPORT 选项，由内核负责将请求负载均衡到这些监听进程中去。这一过程如下图所示。
+
+![](./imgs/90df0945f6ce5c910ae361bf2b135bbd.png)
+
+由于内核确保了只有一个进程被唤醒，就不会出现惊群问题了。
+
+![](./imgs/af2e6c3a19a6e90098772b5df0605b38.png)
+
+不过要注意，想要使用 SO_REUSEPORT 选项，需要用 Linux 3.9 以上的版本才可以。
+
+### C1000K
+
+其实还是基于 C10K 的这些理论，epoll 配合线程池，再加上 CPU、内存和网络接口的性能和容量提升。大部分情况下，C100K 很自然就可以达到。
+
+那么，再进一步，C1000K 是不是也可以很容易就实现呢？这其实没有那么简单了。
+
+大量请求带来的中断处理，也会带来非常高的处理成本。这样，就需要多队列网卡、中断负载均衡、CPU 绑定、RPS/RFS（软中断负载均衡到多个 CPU 核上），以及将网络包的处理卸载（Offload）到网络设备（如 TSO/GSO、LRO/GRO、VXLAN OFFLOAD）等各种硬件和软件的优化。
+
+C1000K 的解决方法，本质上还是构建在 epoll 的非阻塞 I/O 模型上。只不过，除了 I/O 模型之外，还需要从应用程序到 Linux 内核、再到 CPU、内存和网络等各个层次的深度优化，特别是需要借助硬件，来卸载那些原来通过软件处理的大量功能。
+
+### C10M
+
+实际上，在 C1000K 问题中，各种软件、硬件的优化很可能都已经做到头了。
+
+究其根本，还是 Linux 内核协议栈做了太多太繁重的工作。从网卡中断带来的硬中断处理程序开始，到软中断中的各层网络协议处理，最后再到应用程序，这个路径实在是太长了，就会导致网络包的处理优化，到了一定程度后，就无法更进一步了。
+
+要解决这个问题, 这里有两种常见的机制，DPDK 和 XDP
+
+![](./imgs/067ef9df4212cd4ede3cffcdac7001be.png)
+
+![](./imgs/998fd2f52f0a48a910517ada9f2bb23a.png)
+
+### Summary
+
+C10K 问题的根源，一方面在于系统有限的资源；另一方面，也是更重要的因素，是同步阻塞的 I/O 模型以及轮询的套接字接口，限制了网络事件的处理效率。Linux 2.6 中引入的 epoll ，完美解决了 C10K 的问题，现在的高性能网络方案都基于 epoll。
+
+从 C10K 到 C100K ，可能只需要增加系统的物理资源就可以满足；但从 C100K 到 C1000K ，就不仅仅是增加物理资源就能解决的问题了。这时，就需要多方面的优化工作了，从硬件的中断处理和网络功能卸载、到网络协议栈的文件描述符数量、连接状态跟踪、缓存队列等内核的优化，再到应用程序的工作模型优化，都是考虑的重点。
