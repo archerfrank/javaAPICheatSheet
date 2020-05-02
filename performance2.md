@@ -1057,3 +1057,455 @@ C1000K 的解决方法，本质上还是构建在 epoll 的非阻塞 I/O 模型�
 C10K 问题的根源，一方面在于系统有限的资源；另一方面，也是更重要的因素，是同步阻塞的 I/O 模型以及轮询的套接字接口，限制了网络事件的处理效率。Linux 2.6 中引入的 epoll ，完美解决了 C10K 的问题，现在的高性能网络方案都基于 epoll。
 
 从 C10K 到 C100K ，可能只需要增加系统的物理资源就可以满足；但从 C100K 到 C1000K ，就不仅仅是增加物理资源就能解决的问题了。这时，就需要多方面的优化工作了，从硬件的中断处理和网络功能卸载、到网络协议栈的文件描述符数量、连接状态跟踪、缓存队列等内核的优化，再到应用程序的工作模型优化，都是考虑的重点。
+
+## 36 | 套路篇：怎么评估系统的网络性能？
+
+### 性能指标
+
+1. 首先，带宽，表示链路的最大传输速率，单位是 b/s（比特 / 秒）。在你为服务器选购网卡时，带宽就是最核心的参考指标。常用的带宽有 1000M、10G、40G、100G 等。
+2. 第二，吞吐量，表示没有丢包时的最大数据传输速率，单位通常为 b/s （比特 / 秒）或者 B/s（字节 / 秒）。吞吐量受带宽的限制，吞吐量 / 带宽也就是该网络链路的使用率。
+3. 第三，延时，表示从网络请求发出后，一直到收到远端响应，所需要的时间延迟。这个指标在不同场景中可能会有不同的含义。它可以表示建立连接需要的时间（比如 TCP 握手延时），或者一个数据包往返所需时间（比如 RTT）。
+4. 最后，PPS，是 Packet Per Second（包 / 秒）的缩写，表示以网络包为单位的传输速率。PPS 通常用来评估网络的转发能力，而基于 Linux 服务器的转发，很容易受到网络包大小的影响（交换机通常不会受到太大影响，即交换机可以线性转发）。
+
+### 各协议层的性能测试
+
+#### 转发性能
+
+```s
+$ modprobe pktgen
+$ ps -ef | grep pktgen | grep -v grep
+root     26384     2  0 06:17 ?        00:00:00 [kpktgend_0]
+root     26385     2  0 06:17 ?        00:00:00 [kpktgend_1]
+$ ls /proc/net/pktgen/
+kpktgend_0  kpktgend_1  pgctrl
+
+
+
+# 定义一个工具函数，方便后面配置各种测试选项
+function pgset() {
+    local result
+    echo $1 > $PGDEV
+
+    result=`cat $PGDEV | fgrep "Result: OK:"`
+    if [ "$result" = "" ]; then
+         cat $PGDEV | fgrep Result:
+    fi
+}
+
+# 为0号线程绑定eth0网卡
+PGDEV=/proc/net/pktgen/kpktgend_0
+pgset "rem_device_all"   # 清空网卡绑定
+pgset "add_device eth0"  # 添加eth0网卡
+
+# 配置eth0网卡的测试选项
+PGDEV=/proc/net/pktgen/eth0
+pgset "count 1000000"    # 总发包数量
+pgset "delay 5000"       # 不同包之间的发送延迟(单位纳秒)
+pgset "clone_skb 0"      # SKB包复制
+pgset "pkt_size 64"      # 网络包大小
+pgset "dst 192.168.0.30" # 目的IP
+pgset "dst_mac 11:11:11:11:11:11"  # 目的MAC
+
+# 启动测试
+PGDEV=/proc/net/pktgen/pgctrl
+pgset "start"
+
+
+
+$ cat /proc/net/pktgen/eth0
+Params: count 1000000  min_pkt_size: 64  max_pkt_size: 64
+     frags: 0  delay: 0  clone_skb: 0  ifname: eth0
+     flows: 0 flowlen: 0
+...
+Current:
+     pkts-sofar: 1000000  errors: 0
+     started: 1534853256071us  stopped: 1534861576098us idle: 70673us
+...
+Result: OK: 8320027(c8249354+d70673) usec, 1000000 (64byte,0frags)
+  120191pps 61Mb/sec (61537792bps) errors: 0
+
+
+```
+
+你可以看到，测试报告主要分为三个部分：
+1. 第一部分的 Params 是测试选项；
+2. 第二部分的 Current 是测试进度，其中， packts so far（pkts-sofar）表示已经发送了 100 万个包，也就表明测试已完成。
+3. 第三部分的 Result 是测试结果，包含测试所用时间、网络包数量和分片、PPS、吞吐量以及错误数。
+根据上面的结果，我们发现，PPS 为 12 万，吞吐量为 61 Mb/s，没有发生错误。那么，12 万的 PPS 好不好呢？
+
+即使是千兆交换机的 PPS，也可以达到 **150 万 PPS**，比我们测试得到的 12 万大多了。所以，看到这个数值你并不用担心，现在的多核服务器和万兆网卡已经很普遍了，稍做优化就可以达到数百万的 PPS。
+
+### TCP/UDP 性能
+
+iperf 和 netperf 都是最常用的网络性能测试工具，测试 TCP 和 UDP 的吞吐量。它们都以客户端和服务器通信的方式，测试一段时间内的平均吞吐量。
+
+```s
+# -s表示启动服务端，-i表示汇报间隔，-p表示监听端口
+$ iperf3 -s -i 1 -p 10000
+
+
+# -c表示启动客户端，192.168.0.30为目标服务器的IP
+# -b表示目标带宽(单位是bits/s)
+# -t表示测试时间
+# -P表示并发数，-p表示目标服务器监听端口
+$ iperf3 -c 192.168.0.30 -b 1G -t 15 -P 2 -p 10000
+
+
+[ ID] Interval           Transfer     Bandwidth
+...
+[SUM]   0.00-15.04  sec  0.00 Bytes  0.00 bits/sec                  sender
+[SUM]   0.00-15.04  sec  1.51 GBytes   860 Mbits/sec                  receiver
+```
+
+### HTTP 性能
+
+要测试 HTTP 的性能，也有大量的工具可以使用，比如 ab、webbench 等，都是常用的 HTTP 压力测试工具。其中，ab 是 Apache 自带的 HTTP 压测工具，主要测试 HTTP 服务的每秒请求数、请求延迟、吞吐量以及请求延迟的分布情况等。
+
+```s
+# -c表示并发请求数为1000，-n表示总的请求数为10000
+$ ab -c 1000 -n 10000 http://192.168.0.30/
+...
+Server Software:        nginx/1.15.8
+Server Hostname:        192.168.0.30
+Server Port:            80
+
+...
+
+Requests per second:    1078.54 [#/sec] (mean)
+Time per request:       927.183 [ms] (mean)
+Time per request:       0.927 [ms] (mean, across all concurrent requests)
+Transfer rate:          890.00 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:        0   27 152.1      1    1038
+Processing:     9  207 843.0     22    9242
+Waiting:        8  207 843.0     22    9242
+Total:         15  233 857.7     23    9268
+
+Percentage of the requests served within a certain time (ms)
+  50%     23
+  66%     24
+  75%     24
+  80%     26
+  90%    274
+  95%   1195
+  98%   2335
+  99%   4663
+ 100%   9268 (longest request)
+ ```
+
+ * Requests per second 为 1074；
+ * 每个请求的延迟（Time per request）分为两行，第一行的 927 ms 表示平均延迟，包括了线程运行的调度时间和网络请求响应时间，而下一行的 0.927ms ，则表示实际请求的响应时间；
+ * Transfer rate 表示吞吐量（BPS）为 890 KB/s。
+
+ 像 Jmeter 或者 LoadRunner（商业产品），则针对复杂场景提供了脚本录制、回放、GUI 等更丰富的功能，使用起来也更加方便。
+
+ ## 37 | 案例篇：DNS 解析时快时慢，我该怎么办？
+
+ 比如，我的系统配置的就是 114.114.114.114 这个域名服务器。你可以执行下面的命令，来查询你的系统配置：
+
+ ```s
+
+$ cat /etc/resolv.conf
+nameserver 114.114.114.114
+ ```
+
+ * A 记录，用来把域名转换成 IP 地址；
+ * CNAME 记录，用来创建别名；
+ * 而 NS 记录，则表示该域名对应的域名服务器地址。
+
+ 还是以极客时间的网站 time.geekbang.org 为例，执行下面的 nslookup 命令，就可以查询到这个域名的 A 记录，可以看到，它的 IP 地址是 39.106.233.176：
+
+ ```s
+$ nslookup time.geekbang.org
+# 域名服务器及端口信息
+Server:    114.114.114.114
+Address:  114.114.114.114#53
+
+# 非权威查询结果
+Non-authoritative answer:
+Name:  time.geekbang.org
+Address: 39.106.233.17
+ ```
+
+ ```s
+# +trace表示开启跟踪查询
+# +nodnssec表示禁止DNS安全扩展
+$ dig +trace +nodnssec time.geekbang.org
+
+; <<>> DiG 9.11.3-1ubuntu1.3-Ubuntu <<>> +trace +nodnssec time.geekbang.org
+;; global options: +cmd
+.      322086  IN  NS  m.root-servers.net.
+.      322086  IN  NS  a.root-servers.net.
+.      322086  IN  NS  i.root-servers.net.
+.      322086  IN  NS  d.root-servers.net.
+.      322086  IN  NS  g.root-servers.net.
+.      322086  IN  NS  l.root-servers.net.
+.      322086  IN  NS  c.root-servers.net.
+.      322086  IN  NS  b.root-servers.net.
+.      322086  IN  NS  h.root-servers.net.
+.      322086  IN  NS  e.root-servers.net.
+.      322086  IN  NS  k.root-servers.net.
+.      322086  IN  NS  j.root-servers.net.
+.      322086  IN  NS  f.root-servers.net.
+;; Received 239 bytes from 114.114.114.114#53(114.114.114.114) in 1340 ms
+
+org.      172800  IN  NS  a0.org.afilias-nst.info.
+org.      172800  IN  NS  a2.org.afilias-nst.info.
+org.      172800  IN  NS  b0.org.afilias-nst.org.
+org.      172800  IN  NS  b2.org.afilias-nst.org.
+org.      172800  IN  NS  c0.org.afilias-nst.info.
+org.      172800  IN  NS  d0.org.afilias-nst.org.
+;; Received 448 bytes from 198.97.190.53#53(h.root-servers.net) in 708 ms
+
+geekbang.org.    86400  IN  NS  dns9.hichina.com.
+geekbang.org.    86400  IN  NS  dns10.hichina.com.
+;; Received 96 bytes from 199.19.54.1#53(b0.org.afilias-nst.org) in 1833 ms
+
+time.geekbang.org.  600  IN  A  39.106.233.176
+;; Received 62 bytes from 140.205.41.16#53(dns10.hichina.com) in 4 ms
+ ```
+
+ 1. 第一部分，是从 114.114.114.114 查到的一些根域名服务器（.）的 NS 记录。
+ 2. 第二部分，是从 NS 记录结果中选一个（h.root-servers.net），并查询顶级域名 org. 的 NS 记录。
+ 3. 第三部分，是从 org. 的 NS 记录中选择一个（b0.org.afilias-nst.org），并查询二级域名 geekbang.org. 的 NS 服务器。
+ 4. 最后一部分，就是从 geekbang.org. 的 NS 服务器（dns10.hichina.com）查询最终主机 time.geekbang.org. 的 A 记录。
+
+ ![](./imgs/5ffda41ec62fc3c9e0de3fa3443c9cd3.png)
+
+ * 对 DNS 解析的结果进行缓存。缓存是最有效的方法，但要注意，一旦缓存过期，还是要去 DNS 服务器重新获取新记录。不过，这对大部分应用程序来说都是可接受的。
+ * 对 DNS 解析的结果进行预取。这是浏览器等 Web 应用中最常用的方法，也就是说，不等用户点击页面上的超链接，浏览器就会在后台自动解析域名，并把结果缓存起来。
+ * 使用 HTTPDNS 取代常规的 DNS 解析。这是很多移动应用会选择的方法，特别是如今域名劫持普遍存在，使用 HTTP 协议绕过链路中的 DNS 服务器，就可以避免域名劫持的问题。
+ * 基于 DNS 的全局负载均衡（GSLB）。这不仅为服务提供了负载均衡和高可用的功能，还可以根据用户的位置，返回距离最近的 IP 地址。
+
+ ## 38 | 案例篇：怎么使用 tcpdump 和 Wireshark 分析网络流量？
+
+ tcpdump 和 Wireshark 就是最常用的网络抓包和分析工具，更是分析网络性能必不可少的利器。
+ * tcpdump 仅支持命令行格式使用，常用在服务器中抓取和分析网络包。
+ * Wireshark 除了可以抓包外，还提供了强大的图形界面和汇总分析工具，在分析复杂的网络情景时，尤为简单和实用。
+
+ ```s
+$ tcpdump -nn udp port 53 or host 35.190.27.188
+
+
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on eth0, link-type EN10MB (Ethernet), capture size 262144 bytes
+14:02:31.100564 IP 172.16.3.4.56669 > 114.114.114.114.53: 36909+ A? geektime.org. (30)
+14:02:31.507699 IP 114.114.114.114.53 > 172.16.3.4.56669: 36909 1/0/0 A 35.190.27.188 (46)
+14:02:31.508164 IP 172.16.3.4 > 35.190.27.188: ICMP echo request, id 4356, seq 1, length 64
+14:02:31.539667 IP 35.190.27.188 > 172.16.3.4: ICMP echo reply, id 4356, seq 1, length 64
+14:02:31.539995 IP 172.16.3.4.60254 > 114.114.114.114.53: 49932+ PTR? 188.27.190.35.in-addr.arpa. (44)
+14:02:36.545104 IP 172.16.3.4.60254 > 114.114.114.114.53: 49932+ PTR? 188.27.190.35.in-addr.arpa. (44)
+14:02:41.551284 IP 172.16.3.4 > 35.190.27.188: ICMP echo request, id 4356, seq 2, length 64
+14:02:41.582363 IP 35.190.27.188 > 172.16.3.4: ICMP echo reply, id 4356, seq 2, length 64
+14:02:42.552506 IP 172.16.3.4 > 35.190.27.188: ICMP echo request, id 4356, seq 3, length 64
+14:02:42.583646 IP 35.190.27.188 > 172.16.3.4: ICMP echo reply, id 4356, seq 3, length 64
+```
+
+* -nn ，表示不解析抓包中的域名（即不反向解析）、协议以及端口号。
+* udp port 53 ，表示只显示 UDP 协议的端口号（包括源端口和目的端口）为 53 的包。host 35.190.27.188 ，表示只显示 IP 地址（包括源地址和目的地址）为 35.190.27.188 的包。
+* 这两个过滤条件中间的“ or ”，表示或的关系，也就是说，只要满足上面两个条件中的任一个，就可以展示出来。
+
+ ![](./imgs/859d3b5c0071335429620a3fcdde4fff.png)
+
+ ![](./imgs/4870a28c032bdd2a26561604ae2f7cb3.png)
+
+ 最后，再次强调 tcpdump 的输出格式，我在前面已经介绍了它的基本格式：
+
+ 
+时间戳 协议 源地址.源端口 > 目的地址.目的端口 网络包详细信息
+
+### Wireshark
+
+```s
+$ tcpdump -nn udp port 53 or host 35.190.27.188 -w ping.pcap
+```
+
+![](./imgs/6b854703dcfcccf64c0a69adecf2f42c.png)
+![](./imgs/59781a5dc7b1b9234643991365bfc925.png)
+
+```s
+$ dig +short example.com
+93.184.216.34
+$ tcpdump -nn host 93.184.216.34 -w web.pcap
+```
+
+HTTP
+![](./imgs/07bcdba5b563ebae36f5b5b453aacd9d.png)
+
+由于 HTTP 基于 TCP ，所以你最先看到的三个包，分别是 TCP 三次握手的包。接下来，中间的才是 HTTP 请求和响应包，而最后的三个包，则是 TCP 连接断开时的三次挥手包。
+
+从菜单栏中，点击 Statistics -> Flow Graph，然后，在弹出的界面中的 Flow type 选择 TCP Flows，你可以更清晰的看到，整个过程中 TCP 流的执行过程：
+
+![](./imgs/4ec784752fdbc0cc5ead036a6419cbbb.png)
+
+这其实跟各种教程上讲到的，TCP 三次握手和四次挥手很类似，作为对比， 你通常看到的 TCP 三次握手和四次挥手的流程，基本是这样的：
+
+![](./imgs/5230fb678fcd3ca6b55d4644881811e8.png)
+
+其实，之所以有三个包，是因为服务器端收到客户端的 FIN 后，服务器端同时也要关闭连接，这样就可以把 ACK 和 FIN 合并到一起发送，节省了一个包，变成了“三次挥手”。
+
+https://wiki.wireshark.org/TCP%204-times%20close
+
+## 39 | 案例篇：怎么缓解 DDoS 攻击带来的性能下降问题？
+
+```s
+# 运行Nginx服务并对外开放80端口
+# --network=host表示使用主机网络（这是为了方便后面排查问题）
+$ docker run -itd --name=nginx --network=host nginx
+
+
+# -w表示只输出HTTP状态码及总时间，-o表示将响应重定向到/dev/null
+$ curl -s -w 'Http code: %{http_code}\nTotal time:%{time_total}s\n' -o /dev/null http://192.168.0.30/
+...
+Http code: 200
+Total time:0.002s
+
+
+# -S参数表示设置TCP协议的SYN（同步序列号），-p表示目的端口为80
+# -i u10表示每隔10微秒发送一个网络帧
+$ hping3 -S -p 80 -i u10 192.168.0.30
+```
+
+```s
+$ sar -n DEV 1
+08:55:49        IFACE   rxpck/s   txpck/s    rxkB/s    txkB/s   rxcmp/s   txcmp/s  rxmcst/s   %ifutil
+08:55:50      docker0      0.00      0.00      0.00      0.00      0.00      0.00      0.00      0.00
+08:55:50         eth0  22274.00    629.00   1174.64     37.78      0.00      0.00      0.00      0.02
+08:55:50           lo      0.00      0.00      0.00      0.00      0.00      0.00      0.00      0.00
+
+
+# -i eth0 只抓取eth0网卡，-n不解析协议名和主机名
+# tcp port 80表示只抓取tcp协议并且端口号为80的网络帧
+$ tcpdump -i eth0 -n tcp port 80
+09:15:48.287047 IP 192.168.0.2.27095 > 192.168.0.30: Flags [S], seq 1288268370, win 512, length 0
+09:15:48.287050 IP 192.168.0.2.27131 > 192.168.0.30: Flags [S], seq 2084255254, win 512, length 0
+09:15:48.287052 IP 192.168.0.2.27116 > 192.168.0.30: Flags [S], seq 677393791, win 512, length 0
+09:15:48.287055 IP 192.168.0.2.27141 > 192.168.0.30: Flags [S], seq 1276451587, win 512, length 0
+09:15:48.287068 IP 192.168.0.2.27154 > 192.168.0.30: Flags [S], seq 1851495339, win 512, length 0
+...
+```
+
+这个输出中，Flags [S] 表示这是一个 SYN 包。大量的 SYN 包表明，这是一个 SYN Flood 攻击。
+
+```s
+# -n表示不解析名字，-p表示显示连接所属进程
+$ netstat -n -p | grep SYN_REC
+tcp        0      0 192.168.0.30:80          192.168.0.2:12503      SYN_RECV    -
+tcp        0      0 192.168.0.30:80          192.168.0.2:13502      SYN_RECV    -
+tcp        0      0 192.168.0.30:80          192.168.0.2:15256      SYN_RECV    -
+tcp        0      0 192.168.0.30:80          192.168.0.2:18117      SYN_RECV    -
+...
+```
+
+找出源 IP 后，要解决 SYN 攻击的问题，只要丢掉相关的包就可以。这时，iptables 可以帮你完成这个任务。你可以在终端一中，执行下面的 iptables 命令：
+```s
+$ iptables -I INPUT -s 192.168.0.2 -p tcp -j REJECT
+```
+
+我们还有很多其他方法，实现类似的目标。比如，你可以用以下两种方法，来限制 syn 包的速率：
+
+```s
+# 限制syn并发数为每秒1次
+$ iptables -A INPUT -p tcp --syn -m limit --limit 1/s -j ACCEPT
+
+# 限制单个IP在60秒新建立的连接数为10
+$ iptables -I INPUT -p tcp --dport 80 --syn -m recent --name SYN_FLOOD --update --seconds 60 --hitcount 10 -j REJECT
+
+
+
+$ sysctl net.ipv4.tcp_max_syn_backlog
+net.ipv4.tcp_max_syn_backlog = 256
+
+
+$ sysctl -w net.ipv4.tcp_synack_retries=1
+net.ipv4.tcp_synack_retries = 1
+
+#因而，开启 SYN Cookies 后，就不需要维护半开连接状态了，进而也就没有了半连接数的限制。
+$ sysctl -w net.ipv4.tcp_syncookies=1
+net.ipv4.tcp_syncookies = 1
+
+
+$ cat /etc/sysctl.conf
+net.ipv4.tcp_syncookies = 1
+net.ipv4.tcp_synack_retries = 1
+net.ipv4.tcp_max_syn_backlog = 1024
+```
+
+当 DDoS 报文到达服务器后，Linux 提供的机制只能缓解，而无法彻底解决。即使像是 SYN Flood 这样的小包攻击，其巨大的 PPS ，也会导致 Linux 内核消耗大量资源，进而导致其他网络报文的处理缓慢。虽然你可以调整内核参数，缓解 DDoS 带来的性能问题，却也会像案例这样，无法彻底解决它。
+
+对于流量型的 DDoS 来说，当服务器的带宽被耗尽后，在服务器内部处理就无能为力了。这时，只能在服务器外部的网络设备中，设法识别并阻断流量（当然前提是网络设备要能扛住流量攻击）。比如，购置专业的入侵检测和防御设备，配置流量清洗设备阻断恶意流量等。
+
+## 40 | 案例篇：网络请求延迟变大了，我该怎么办？
+
+很多网络服务会把 ICMP 禁止掉，这也就导致我们无法用 ping ，来测试网络服务的可用性和往返延时。这时，你可以用 traceroute 或 hping3 的 TCP 和 UDP 模式，来获取网络延迟。
+
+```s
+# -c表示发送3次请求，-S表示设置TCP SYN，-p表示端口号为80
+$ hping3 -c 3 -S -p 80 baidu.com
+HPING baidu.com (eth0 123.125.115.110): S set, 40 headers + 0 data bytes
+len=46 ip=123.125.115.110 ttl=51 id=47908 sport=80 flags=SA seq=0 win=8192 rtt=20.9 ms
+len=46 ip=123.125.115.110 ttl=51 id=6788  sport=80 flags=SA seq=1 win=8192 rtt=20.9 ms
+len=46 ip=123.125.115.110 ttl=51 id=37699 sport=80 flags=SA seq=2 win=8192 rtt=20.9 ms
+
+--- baidu.com hping statistic ---
+3 packets transmitted, 3 packets received, 0% packet loss
+round-trip min/avg/max = 20.9/20.9/20.9 ms
+
+
+
+# --tcp表示使用TCP协议，-p表示端口号，-n表示不对结果中的IP地址执行反向域名解析
+$ traceroute --tcp -p 80 -n baidu.com
+traceroute to baidu.com (123.125.115.110), 30 hops max, 60 byte packets
+ 1  * * *
+ 2  * * *
+ 3  * * *
+ 4  * * *
+ 5  * * *
+ 6  * * *
+ 7  * * *
+ 8  * * *
+ 9  * * *
+10  * * *
+11  * * *
+12  * * *
+13  * * *
+14  123.125.115.110  20.684 ms *  20.798 ms
+```
+
+这里我解释一下延迟确认。这是针对 TCP ACK 的一种优化机制，也就是说，不用每次请求都发送一个 ACK，而是先等一会儿（比如 40ms），看看有没有“顺风车”。如果这段时间内，正好有其他包需要发送，那就捎带着 ACK 一起发送过去。当然，如果一直等不到其他包，那就超时后单独发送 ACK。
+
+
+TCP_QUICKACK (since Linux 2.4.4)
+              Enable  quickack mode if set or disable quickack mode if cleared.  In quickack mode, acks are sent imme‐
+              diately, rather than delayed if needed in accordance to normal TCP operation.  This flag is  not  perma‐
+              nent,  it only enables a switch to or from quickack mode.  Subsequent operation of the TCP protocol will
+              once again enter/leave quickack mode depending on internal  protocol  processing  and  factors  such  as
+              delayed ack timeouts occurring and data transfer.  This option should not be used in code intended to be
+              portable.
+
+Nagle 算法，是 TCP 协议中用于减少小包发送数量的一种优化算法，目的是为了提高实际带宽的利用率。
+
+显然，Nagle 算法本身的想法还是挺好的，但是知道 Linux 默认的延迟确认机制后，你应该就不这么想了。因为它们一起使用时，网络延迟会明显。如下图所示：
+![](./imgs/c51439692921cbf67b746a45fded2ec6.png)
+
+查询 tcp 的文档，你就会知道，只有设置了 **TCP_NODELAY** 后，Nagle 算法才会禁用。所以，我们只需要查看 Nginx 的 tcp_nodelay 选项就可以了。
+
+
+所以，在发现网络延迟增大后，你可以用 traceroute、hping3、tcpdump、Wireshark、strace 等多种工具，来定位网络中的潜在问题。比如，
+
+* 使用 hping3 以及 wrk 等工具，确认单次请求和并发请求情况的网络延迟是否正常。
+* 使用 traceroute，确认路由是否正确，并查看路由中每一跳网关的延迟。
+* 使用 tcpdump 和 Wireshark，确认网络包的收发是否正常。
+* 使用 strace 等，观察应用程序对网络套接字的调用情况是否正常。
+
+### 41 | 案例篇：如何优化 NAT 性能？（上）
+
+网络地址端口转换 NAPT（Network Address and Port Translation），即把内网 IP 映射到公网 IP 的不同端口上，让多个内网 IP 可以共享同一个公网 IP 地址。
+
+NAPT 是目前最流行的 NAT 类型，我们在 Linux 中配置的 NAT 也是这种类型。而根据转换方式的不同，我们又可以把 NAPT 分为三类。
+1. 第一类是源地址转换 SNAT，即目的地址不变，只替换源 IP 或源端口。SNAT 主要用于，多个内网 IP 共享同一个公网 IP ，来访问外网资源的场景。
+2. 第二类是目的地址转换 DNAT，即源 IP 保持不变，只替换目的 IP 或者目的端口。DNAT 主要通过公网 IP 的不同端口号，来访问内网的多种服务，同时会隐藏后端服务器的真实 IP 地址。
+3. 第三类是双向地址转换，即同时使用 SNAT 和 DNAT。当接收到网络包时，执行 DNAT，把目的 IP 转换为内网 IP；而在发送网络包时，执行 SNAT，把源 IP 替换为外部 IP。
+
