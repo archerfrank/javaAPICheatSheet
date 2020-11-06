@@ -118,6 +118,43 @@ SQL 标准的事务隔离级别包括：读未提交（read uncommitted）、读
 所以，从性能和存储空间方面考量，自增主键往往是更合理的选择。
 
 
+### 覆盖索引  Using index
+
+如果执行的语句是 select ID from T where k between 3 and 5，这时只需要查 ID 的值，而 ID 的值已经在 k 索引树上了，因此可以直接提供查询结果，不需要回表。也就是说，在这个查询里面，索引 k 已经“覆盖了”我们的查询需求，我们称为覆盖索引。
+
+**由于覆盖索引可以减少树的搜索次数，显著提升查询性能，所以使用覆盖索引是一个常用的性能优化手段。**
+
+### 最左前缀原则
+
+我们用（name，age）这个联合索引来分析
+
+![](./imgs/89f74c631110cfbc83298ef27dcd6370.jpg)
+
+如果你要查的是所有名字第一个字是“张”的人，你的 SQL 语句的条件是"where name like ‘张 %’"。这时，你也能够用上这个索引.
+
+在建立联合索引的时候，如何安排索引内的字段顺序。
+
+1. 第一原则是，如果通过调整顺序，可以少维护一个索引，那么这个顺序往往就是需要优先考虑采用的。
+2. 考虑的原则就是空间了。比如上面这个市民表的情况，name 字段是比 age 字段大的 ，那我就建议你创建一个（name,age) 的联合索引和一个 (age) 的单字段索引。
+
+### 索引下推 Using index condition
+
+```sql
+mysql> select * from tuser where name like '张%' and age=10 and ismale=1;
+```
+
+* 在 MySQL 5.6 之前，只能从 ID3 开始一个个回表。到主键索引上找出数据行，再对比字段值。
+* 而 MySQL 5.6 引入的索引下推优化（index condition pushdown)， 可以在索引遍历过程中，对索引中包含的字段先做判断，直接过滤掉不满足条件的记录，减少回表次数。
+
+
+### 重建主键
+alter table T engine=InnoDB
+
+### Explain
+
+* Using where：表示优化器需要通过索引回表查询数据,然后再过滤数据。
+* Using index：表示直接访问索引就足够获取到所需要的数据，不需要通过索引回表；
+* Using index condition：在5.6版本后加入的新特性（Index Condition Pushdown）;
 
 
 
