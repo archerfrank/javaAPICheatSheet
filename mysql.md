@@ -291,4 +291,87 @@ mysql> select k from t where id=1 for update;
 
 判断可见性两个规则：**一个是up_limit_id** ,**另一个是“自己修改的”**；这里用到第二个规则
 
+只读事务不分配id，是5.6以后的优化；
+第45讲提到，其实也不是不分配id，只是不分配自增的id，随机分配的那个也是事务id的。
+
+## 09 | 普通索引和唯一索引，应该怎么选择？
+
+### 查询过程
+
+执行查询的语句是 select id from T where k=5
+
+* 对于普通索引来说，查找到满足条件的第一个记录 (5,500) 后，需要查找下一个记录，直到碰到第一个不满足 k=5 条件的记录。
+
+* 对于唯一索引来说，由于索引定义了唯一性，查找到第一个满足条件的记录后，就会停止继续检索。
+
+你知道的，InnoDB 的数据是按数据页为单位来读写的。也就是说，当需要读一条记录的时候，并不是将这个记录本身从磁盘读出来，而是以页为单位，将其整体读入内存。在 InnoDB 中，每个数据页的大小默认是 16KB。对于普通索引来说，要多做的那一次“查找和判断下一条记录”的操作，就只需要一次指针寻找和一次计算。
+
+### 更新过程
+
+当需要更新一个数据页时，如果数据页在内存中就直接更新，而如果这个数据页还没有在内存中的话，在不影响数据一致性的前提下，InnoDB 会将这些更新操作缓存在 change buffer 中，这样就不需要从磁盘中读入这个数据页了。在下次查询需要访问这个数据页的时候，将数据页读入内存，然后执行 change buffer 中与这个页有关的操作。
+
+虽然名字叫作 change buffer，实际上它是可以持久化的数据。也就是说，change buffer 在内存中有拷贝，也会被写入到磁盘上。
+
+除了访问这个数据页会触发 merge 外，系统有后台线程会定期 merge。在数据库正常关闭（shutdown）的过程中，也会执行 merge 操作。
+
+**什么条件下可以使用 change buffer 呢？**
+
+对于唯一索引来说，所有的更新操作都要先判断这个操作是否违反唯一性约束。而**这必须要将数据页读入内存才能判断**。如果都已经读入到内存了，那直接更新内存会更快，就没必要使用 change buffer 了。
+
+因此，唯一索引的更新就不能使用 change buffer，实际上也只有普通索引可以使用。
+
+change buffer 用的是 buffer pool 里的内存，因此不能无限增大。change buffer 的大小，可以通过参数 innodb_change_buffer_max_size 来动态设置。这个参数设置为 50 的时候，表示 change buffer 的大小最多只能占用 buffer pool 的 50%。
+
+如果要在这张表中插入一个新记录 (4,400) 的话，InnoDB 的处理流程是怎样的。
+
+如果这个记录要更新的目标页在内存中，普通索引和唯一索引对更新语句性能影响的差别，只是一个判断，只会耗费微小的 CPU 时间。
+
+如果这个记录要更新的目标页不在内存中
+
+* 对于唯一索引来说，需要将数据页读入内存，判断到没有冲突，插入这个值，语句执行结束；
+* 对于普通索引来说，则是将更新记录在 change buffer，语句执行就结束了。
+
+### 索引选择和实践
+
+其实，这两类索引在查询能力上是没差别的，主要考虑的是对更新性能的影响。所以，我建议你尽量选择普通索引。
+
+如果所有的更新后面，都马上伴随着对这个记录的查询，那么你应该关闭 change buffer。而在其他情况下，change buffer 都能提升更新性能。
+
+在使用机械硬盘时，change buffer 这个机制的收效是非常显著的。
+
+### change buffer 和 redo log
+
+mysql> insert into t(id,k) values(id1,k1),(id2,k2);
+
+
+![](./imgs/980a2b786f0ea7adabef2e64fb4c4ca3.png)
+
+分析这条更新语句，你会发现它涉及了四个部分：内存、redo log（ib_log_fileX）、 数据表空间（t.ibd）、系统表空间（ibdata1）。
+
+1. Page 1 在内存中，直接更新内存；
+2. Page 2 没有在内存中，就在内存的 change buffer 区域，记录下“我要往 Page 2 插入一行”这个信息
+3. 将上述两个动作记入 redo log 中（图中 3 和 4）。
+
+我们现在要执行 select * from t where k in (k1, k2)
+
+![](./imgs/6dc743577af1dbcbb8550bddbfc5f98e.png)
+
+要读 Page 2 的时候，需要把 Page 2 从磁盘读入内存中，然后应用 change buffer 里面的操作日志，生成一个正确的版本并返回结果。
+
+所以，如果要简单地对比这两个机制在提升更新性能上的收益的话，**redo log 主要节省的是随机写磁盘的 IO 消耗（转成顺序写），而 change buffer 主要节省的则是随机读磁盘的 IO 消耗**。
+
+### 课后
+
+redo log里记录了数据页的修改以及change buffer新写入的信息
+如果掉电,持久化的change buffer数据已经purge,不用恢复。主要分析没有持久化的数据
+情况又分为以下几种:
+
+(1) change buffer写入,redo log虽然做了fsync但未commit,binlog未fsync到磁盘,这部分数据丢失
+
+(2) change buffer写入,redo log写入但没有commit,binlog已经fsync到磁盘,先从binlog恢复redo log,再从redo log恢复change buffer
+
+(3) change buffer写入,redo log和binlog都已经fsync.那么直接从redo log里恢复。
+
+change buffer的前身是insert buffer,只能对insert 操作优化；后来升级了，增加了update/delete的支持，名字也改叫change buffer.主要就是优化二级索引。
+
 
