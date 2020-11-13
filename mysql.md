@@ -806,8 +806,102 @@ session B 的“加 next-key lock(5,10] ”操作，实际上分成了两步，�
 
 读提交隔离级别下，锁的范围更小，锁的时间更短，这也是不少业务都默认使用读提交隔离级别的原因。
 
+这里，我再啰嗦下，你会发现我在文章中，每次加锁都会说明是加在“哪个索引上”的。因为，锁就是加在索引上的，这是 InnoDB 的一个基础设定，需要你在分析问题的时候要一直记得。
+
 ### 课后
 
 1. 查询过程中访问到的对象才会加锁，而加锁的基本单位是next-key lock（前开后闭）；
 2. 等值查询上MySQL的优化：索引上的等值查询，如果是唯一索引，next-key lock会退化为行锁，如果不是唯一索引，需要访问到第一个不满足条件的值，此时next-key lock会退化为间隙锁；
 3. 范围查询：无论是否是唯一索引，范围查询都需要访问到不满足条件的第一个值为止；
+
+## 22 | MySQL有哪些“饮鸩止渴”提高性能的方法？
+
+### 短连接风暴
+
+短连接模型存在一个风险，就是一旦数据库处理得慢一些，连接数就会暴涨。max_connections 参数，用来控制一个 MySQL 实例同时存在的连接数的上限，超过这个值，系统就会拒绝接下来的连接请求
+
+### 先处理掉那些占着连接但是不工作的线程
+
+看事务具体状态的话，你可以查 information_schema 库的 innodb_trx 表。
+
+![](./imgs/ca4b455c8eacbf32b98d1fe9ed9876e8.png)
+
+这个结果里，trx_mysql_thread_id=4，表示 id=4 的线程还处在事务中。
+
+一个客户端处于 sleep 状态时，它的连接被服务端主动断开后，这个客户端并不会马上知道。直到客户端在发起下一个请求的时候，才会收到这样的报错“ERROR 2013 (HY000): Lost connection to MySQL server during query”。
+
+### 第二种方法：减少连接过程的消耗。
+
+跳过权限验证的方法是：重启数据库，并使用–skip-grant-tables 参数启动。这样，整个 MySQL 会跳过所有的权限验证阶段，包括连接过程和语句执行过程在内。
+
+### 慢查询问题
+
+索引没设计好和语句没写好。而这两种情况，恰恰是完全可以避免的
+
+1. 上线前，在测试环境，把慢查询日志（slow log）打开，并且把 long_query_time 设置成 0，确保每个语句都会被记录入慢查询日志；
+2. 在测试表里插入模拟线上的数据，做一遍回归测试；
+3. 观察慢查询日志里每类语句的输出，特别留意 Rows_examined 字段是否与预期一致。（我们在前面文章中已经多次用到过 Rows_examined 方法了，相信你已经动手尝试过了。如果还有不明白的，欢迎给我留言，我们一起讨论）。
+
+这时候，你需要工具帮你检查所有的 SQL 语句的返回结果。比如，你可以使用开源工具 pt-query-digest(https://www.percona.com/doc/percona-toolkit/3.0/pt-query-digest.html)。
+
+## 23 | MySQL是怎么保证数据不丢的？
+
+### binlog 的写入机制
+
+一个事务的 binlog 是不能被拆开的，因此不论这个事务多大，也要确保一次性写入。这就涉及到了 binlog cache 的保存问题。
+
+事务提交的时候，执行器把 binlog cache 里的完整事务写入到 binlog 中，并清空 binlog cache。
+
+每个线程有自己 binlog cache，但是共用同一份 binlog 文件。
+1. 图中的 write，指的就是指把日志写入到文件系统的 page cache，并没有把数据持久化到磁盘，所以速度比较快。
+2. 图中的 fsync，才是将数据持久化到磁盘的操作。一般情况下，我们认为 fsync 才占磁盘的 IOPS。
+
+write 和 fsync 的时机，是由参数 sync_binlog 控制的：
+1. sync_binlog=0 的时候，表示每次提交事务都只 write，不 fsync；
+2. sync_binlog=1 的时候，表示每次提交事务都会执行 fsync；
+3. sync_binlog=N(N>1) 的时候，表示每次提交事务都 write，但累积 N 个事务后才 fsync。
+
+一般不建议将这个参数设成 0，比较常见的是将其设置为 100~1000 中的某个数值。
+
+## redo log 的写入机制
+
+日志写到 redo log buffer 是很快的，wirte 到 page cache 也差不多，但是持久化到磁盘的速度就慢多了。
+
+为了控制 redo log 的写入策略，InnoDB 提供了 innodb_flush_log_at_trx_commit 参数，它有三种可能取值：
+
+* 设置为 0 的时候，表示每次事务提交时都只是把 redo log 留在 redo log buffer 中 ;
+* 设置为 1 的时候，表示每次事务提交时都将 redo log 直接持久化到磁盘；
+* 设置为 2 的时候，表示每次事务提交时都只是把 redo log 写到 page cache。
+
+InnoDB 有一个后台线程，每隔 1 秒，就会把 redo log buffer 中的日志，调用 write 写到文件系统的 page cache，然后调用 fsync 持久化到磁盘。
+
+事务执行中间过程的 redo log 也是直接写在 redo log buffer 中的，这些 redo log 也会被后台线程一起持久化到磁盘。也就是说，一个没有提交的事务的 redo log，也是可能已经持久化到磁盘的。
+
+还有两种场景会让一个没有提交的事务的 redo log 写入到磁盘中。
+1. 一种是，redo log buffer 占用的空间即将达到 innodb_log_buffer_size 一半的时候，后台线程会主动写盘。
+2. 另一种是，并行的事务提交的时候，顺带将这个事务的 redo log buffer 持久化到磁盘。
+
+如果把 innodb_flush_log_at_trx_commit 设置成 1，那么 redo log 在 prepare 阶段就要持久化一次，因为有一个崩溃恢复逻辑是要依赖于 prepare 的 redo log，再加上 binlog 来恢复的。
+
+InnoDB 就认为 redo log 在 commit 的时候就不需要 fsync 了，只会 write 到文件系统的 page cache 中就够了。
+
+通常我们说 MySQL 的“双 1”配置，指的就是 sync_binlog 和 innodb_flush_log_at_trx_commit 都设置成 1。也就是说，一个事务完整提交前，需要等待两次刷盘，一次是 redo log（prepare 阶段），一次是 binlog。
+
+
+了解（log sequence number，LSN）的概念。LSN 是单调递增的，用来对应 redo log 的一个个写入点。每次写入长度为 length 的 redo log， LSN 的值就会加上 length。
+
+LSN 也会写到 InnoDB 的数据页中，来确保数据页不会被多次执行重复的 redo log。
+
+
+![](./imgs/933fdc052c6339de2aa3bf3f65b188cc.png)
+
+在并发更新场景下，第一个事务写完 redo log buffer 以后，接下来这个 fsync 越晚调用，组员可能越多，节约 IOPS 的效果就越好。
+
+![](./imgs/5ae7d074c34bc5bd55c82781de670c28.png)
+
+不过通常情况下第 3 步执行得会很快，所以 binlog 的 write 和 fsync 间的间隔时间短，导致能集合到一起持久化的 binlog 比较少，因此 binlog 的组提交的效果通常不如 redo log 的效果那么好。
+
+如果你想提升 binlog 组提交的效果，可以通过设置 binlog_group_commit_sync_delay 和 binlog_group_commit_sync_no_delay_count 来实现。
+
+* binlog_group_commit_sync_delay 参数，表示延迟多少微秒后才调用 fsync；
+* binlog_group_commit_sync_no_delay_count 参数，表示累积多少次以后才调用 fsync。
