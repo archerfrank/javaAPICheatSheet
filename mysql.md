@@ -575,6 +575,12 @@ InnoDB 引擎使用的是 WAL 技术，执行事务的时候，写完内存和�
 
 执行过的事务如果没有刷盘（fsync）也是可能丢失了的，而且是数据页级的丢失。此时，binlog 里面并没有记录数据页的更新细节，是补不回来的。
 
+一个事务的binlog如果回放，就是重做这个事务，一个事务更新的可能不止一个page。
+
+比如一个事务更新了page ABC
+然后崩溃回复了，B坏了，AC没问题，而且AC还落盘了。
+这样如果重做事务，B好了，AC又坏了
+
 ### 追问 6：那能不能反过来，只用 redo log，不要 binlog？
 
 1. 一个是归档。redo log 是循环写，写到末尾是要回到开头继续写的。这样历史日志没法保留，redo log 也就起不到归档的作用。
@@ -905,3 +911,20 @@ LSN 也会写到 InnoDB 的数据页中，来确保数据页不会被多次执�
 
 * binlog_group_commit_sync_delay 参数，表示延迟多少微秒后才调用 fsync；
 * binlog_group_commit_sync_no_delay_count 参数，表示累积多少次以后才调用 fsync。
+
+### 总结
+
+现在你就能理解了，WAL 机制主要得益于两个方面：
+1. redo log 和 binlog 都是顺序写，磁盘的顺序写比随机写速度要快；
+2. 组提交机制，可以大幅度降低磁盘的 IOPS 消耗。
+
+如果你的 MySQL 现在出现了性能瓶颈，而且瓶颈在 IO 上，可以通过哪些方法来提升性能呢？
+针对这个问题，可以考虑以下三种方法：
+1. 设置 binlog_group_commit_sync_delay 和 binlog_group_commit_sync_no_delay_count 参数，减少 binlog 的写盘次数。这个方法是基于“额外的故意等待”来实现的，因此可能会增加语句的响应时间，但没有丢失数据的风险。
+2. 将 sync_binlog 设置为大于 1 的值（比较常见是 100~1000）。这样做的风险是，主机掉电时会丢 binlog 日志。
+3. 将 innodb_flush_log_at_trx_commit 设置为 2。这样做的风险是，主机掉电的时候会丢数据。
+
+问题 2：为什么 binlog cache 是每个线程自己维护的，而 redo log buffer 是全局共用的？
+
+回答：MySQL 这么设计的主要原因是，binlog 是不能“被打断的”。一个事务的 binlog 必须连续写，因此要整个事务完成后，再一起写到文件里。而 redo log 并没有这个要求，中间有生成的日志可以写到 redo log buffer 中。redo log buffer 中的内容还能“搭便车”，其他事务提交的时候可以被一起写到磁盘中。
+
