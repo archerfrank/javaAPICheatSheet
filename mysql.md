@@ -1081,3 +1081,144 @@ MariaDB 的并行复制策略利用的就是这个特性：
 当然，对于“表上没主键”和“外键约束”的场景，WRITESET 策略也是没法并行的，也会暂时退化为单线程模型。
 
 ## 27 | 主库出问题了，从库怎么办？
+
+我们再一起看看一个切换系统会怎么完成一主多从的主备切换过程。
+
+![](./imgs/0014f97423bd75235a9187f492fb2453.png)
+
+### 基于位点的主备切换
+
+```sql
+CHANGE MASTER TO 
+MASTER_HOST=$host_name 
+MASTER_PORT=$port 
+MASTER_USER=$user_name 
+MASTER_PASSWORD=$password 
+MASTER_LOG_FILE=$master_log_name 
+MASTER_LOG_POS=$master_log_pos  
+```
+但是相同的日志，A 的位点和 A’的位点是不同的。
+
+一种取同步位点的方法是这样的：
+1. 等待新主库 A’把中转日志（relay log）全部同步完成；
+2. 在 A’上执行 show master status 命令，得到当前 A’上最新的 File 和 Position；
+3. 取原主库 A 故障的时刻 T；
+4. 用 mysqlbinlog 工具解析 A’的 File，得到 T 时刻的位点。
+
+```sql
+mysqlbinlog File --stop-datetime=T --start-datetime=T
+```
+
+通常情况下，我们在切换任务的时候，要先主动跳过主键冲突这些错误，有两种常用的方法。
+
+一种做法是，主动跳过一个事务。跳过命令的写法是：
+
+```sql
+set global sql_slave_skip_counter=1;
+start slave;
+```
+
+另外一种方式是，通过设置 slave_skip_errors 参数，直接设置跳过指定的错误。
+
+有这么两类错误，是经常会遇到的：
+
+* 1062 错误是插入数据时唯一键冲突；
+* 1032 错误是删除数据时找不到行。
+
+### GTID
+
+GTID 的全称是 Global Transaction Identifier，也就是全局事务 ID，是一个事务在提交的时候生成的，是这个事务的唯一标识。
+
+```sql
+GTID=source_id:transaction_id
+```
+
+如果我们知道事务在master的 GTID 是aaaaaaaa-cccc-dddd-eeee-ffffffffffff:10”。
+实例 X 作为 Y 的从库，就要同步这个事务过来执行，显然会出现主键冲突，导致实例 X 的同步线程停止。
+
+```sql
+set gtid_next='aaaaaaaa-cccc-dddd-eeee-ffffffffffff:10';
+begin;
+commit;
+set gtid_next=automatic;
+start slave;
+```
+
+通过提交一个空事务，把这个 GTID 加到实例 X 的 GTID 集合中。
+
+![](./imgs/c8d3299ece7d583a3ecd1557851ed157.png)
+
+### 基于 GTID 的主备切换
+
+在 GTID 模式下，备库 B 要设置为新主库 A’的从库的语法如下：
+```sql
+CHANGE MASTER TO 
+MASTER_HOST=$host_name 
+MASTER_PORT=$port 
+MASTER_USER=$user_name 
+MASTER_PASSWORD=$password 
+master_auto_position=1 
+```
+master_auto_position=1 就表示这个主备关系使用的是 GTID 协议。可以看到，前面让我们头疼不已的 MASTER_LOG_FILE 和 MASTER_LOG_POS 参数，已经不需要指定了。
+
+实例 A’算出 set_a 与 set_b 的差集，也就是所有存在于 set_a，但是不存在于 set_b 的 GTID 的集合，判断 A’本地是否包含了这个差集需要的所有 binlog 事务。如果确认全部包含，A’从自己的 binlog 文件里面，找出第一个不在 set_b 的事务，发给 B；之后就从这个事务开始，往后读文件，按顺序取 binlog 发给 B 去执行。
+
+## 28 | 读写分离有哪些坑？
+
+接下来，我们就看一下客户端直连和带 proxy 的读写分离架构，各有哪些特点.
+
+客户端直连方案，因为少了一层 proxy 转发，所以查询性能稍微好一点儿，并且整体架构简单，排查问题更方便。但是这种方案，由于要了解后端部署细节，所以在出现主备切换、库迁移等操作的时候，客户端都会感知到，并且需要调整数据库连接信息。你可能会觉得这样客户端也太麻烦了，信息大量冗余，架构很丑。其实也未必，一般采用这样的架构，一定会伴随一个负责管理后端的组件，比如 Zookeeper，尽量让业务端只专注于业务逻辑开发。
+
+带 proxy 的架构，对客户端比较友好。客户端不需要关注后端细节，连接维护、后端信息维护等工作，都是由 proxy 完成的。但这样的话，对后端维护团队的要求会更高。而且，proxy 也需要有高可用架构。因此，带 proxy 架构的整体就相对比较复杂。
+
+这种“在从库上会读到系统的一个过期状态”的现象，在这篇文章里，我们暂且称之为“**过期读**”。
+
+* 强制走主库方案；
+* sleep 方案；
+* 判断主备无延迟方案；
+  * 对比位点和对比 GTID 这两种方法，都要比判断 seconds_behind_master 是否为 0 更准确。
+* 配合 semi-sync 方案；
+  * 事务提交的时候，主库把 binlog 发给从库；从库收到 binlog 以后，发回给主库一个 ack，表示收到了；主库收到这个 ack 以后，才能给客户端返回“事务完成”的确认。也就是说，如果启用了 semi-sync，就表示所有给客户端发送过确认的事务，都确保了备库已经收到了这个日志。
+* 等主库位点方案；
+* 等 GTID 方案。
+  * trx1 事务更新完成后，从返回包直接获取这个事务的 GTID，记为 gtid1；
+  * 选定一个从库执行查询语句；
+  * 在从库上执行 select wait_for_executed_gtid_set(gtid1, 1)；
+  * 如果返回值是 0，则在这个从库执行查询语句；
+  * 否则，到主库执行查询语句。
+
+怎么能够让 MySQL 在执行事务后，返回包中带上 GTID 呢？你只需要将参数 session_track_gtids 设置为 OWN_GTID，然后通过 API 接口 mysql_session_track_get_first 从返回包解析出 GTID 的值即可。
+
+## 29 | 如何判断一个数据库是不是出问题了？
+
+### select 1 判断
+这个只在server层，如果innodb_thread_concurrency满了，是没法知道的。
+
+### 查表判断
+
+select * from mysql.health_check;一旦 binlog 所在磁盘的空间占用率达到 100%，那么所有的更新语句和事务提交的 commit 语句就都会被堵住。但是，系统这时候还是可以正常读数据的。
+
+### 更新判断
+update mysql.health_check set t_modified=now();
+
+为了让主备之间的更新不产生冲突，我们可以在 mysql.health_check 表上存入多行数据，并用 A、B 的 server_id 做主键。
+
+```sql
+mysql> CREATE TABLE `health_check` (
+  `id` int(11) NOT NULL,
+  `t_modified` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB;
+
+/* 检测命令 */
+insert into mysql.health_check(id, t_modified) values (@@server_id, now()) on duplicate key update t_modified=now();
+```
+
+更新判断是一个相对比较常用的方案了，不过依然存在一些问题。其中，“判定慢”一直是让 DBA 头疼的问题。
+
+### 内部方法
+这个有点复杂，看文章吧。
+我个人比较倾向的方案，是优先考虑 update 系统表，然后再配合增加检测 performance_schema 的信息。
+
+
+
