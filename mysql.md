@@ -1221,4 +1221,70 @@ insert into mysql.health_check(id, t_modified) values (@@server_id, now()) on du
 我个人比较倾向的方案，是优先考虑 update 系统表，然后再配合增加检测 performance_schema 的信息。
 
 
+## 30 | 答疑文章（二）：用动态的观点看加锁
+
+
+我总结的加锁规则里面，包含了两个“原则”、两个“优化”和一个“bug”。
+* 原则 1：加锁的基本单位是 next-key lock。希望你还记得，next-key lock 是前开后闭区间。
+* 原则 2：查找过程中访问到的对象才会加锁。
+* 优化 1：索引上的等值查询，给唯一索引加锁的时候，next-key lock 退化为行锁。
+* 优化 2：索引上的等值查询，向右遍历时且最后一个值不满足等值条件的时候，next-key lock 退化为间隙锁。
+* 一个 bug：唯一索引上的范围查询会访问到不满足条件的第一个值为止。
+
+### 怎么看死锁？
+执行 show engine innodb status 命令得到的部分输出
+
+### 怎么看锁等待？
+show engine innodb status
+
+## 31 | 误删数据后除了跑路，还能怎么办？
+
+### 误删行
+
+需要确保 binlog_format=row 和 binlog_row_image=FULL。
+
+1. 对于 insert 语句，对应的 binlog event 类型是 Write_rows event，把它改成 Delete_rows event 即可；
+2. 同理，对于 delete 语句，也是将 Delete_rows event 改为 Write_rows event；
+3. 而如果是 Update_rows 的话，binlog 里面记录了数据行修改前和修改后的值，对调这两行的位置即可。
+
+也就是说，如果误删数据涉及到了多个事务的话，需要将事务的顺序调过来再执行。
+
+
+我们不止要说误删数据的事后处理办法，更重要是要做到事前预防.
+
+1. 把 sql_safe_updates 参数设置为 on。这样一来，如果我们忘记在 delete 或者 update 语句中写 where 条件，或者 where 条件里面没有包含索引字段的话，这条语句的执行就会报错。
+2. 代码上线前，必须经过 SQL 审计。
+
+
+### 误删库 / 表
+
+这种情况下，要想恢复数据，就需要使用全量备份，加增量日志的方式了。
+这个方案要求线上有定期的全量备份，并且实时备份 binlog。在这两个条件都具备的情况下，假如有人中午 12 点误删了一个库，恢复数据的流程如下：
+1. 取最近一次全量备份，假设这个库是一天一备，上次备份是当天 0 点；
+2. 用备份恢复出一个临时库；
+3. 从日志备份里面，取出凌晨 0 点之后的日志；
+4. 把这些日志，除了误删除数据的语句外，全部应用到临时库。
+
+一种加速的方法是，在用备份恢复出临时实例之后，将这个临时实例设置成线上备库的从库
+
+1. 在 start slave 之前，先通过执行change replication filter replicate_do_table = (tbl_name) 命令，就可以让临时库只同步误操作的表；
+2. 这样做也可以用上并行复制技术，来加速整个数据恢复过程。
+3. 如果实例使用了 GTID 模式，就方便多了。假设误操作命令的 GTID 是 gtid1，那么只需要执行 set gtid_next=gtid1;begin;commit; 先把这个 GTID 加到临时实例的 GTID 集合，之后按顺序执行 binlog 的时候，就会自动跳过误操作的语句。
+
+### 延迟复制备库
+
+搭建延迟复制的备库。这个功能是 MySQL 5.6 版本引入的。
+
+```sql
+CHANGE MASTER TO MASTER_DELAY = N 命令，可以指定这个备库持续保持跟主库有 N 秒的延迟。
+```
+
+### rm 删除数据
+
+只是删掉了其中某一个节点的数据的话，HA 系统就会开始工作，选出一个新的主库，从而保证整个集群的正常工作
+
+
+
+
+
 
