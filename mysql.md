@@ -1526,3 +1526,96 @@ grant 语句会同时修改数据表和内存，判断权限的时候使用的�
 flush privileges 语句本身会用数据表的数据重建一份内存权限数据
 
 ## 43 | 要不要使用分区表？
+
+```sql
+
+CREATE TABLE `t` (
+  `ftime` datetime NOT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY (`ftime`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+PARTITION BY RANGE (YEAR(ftime))
+(PARTITION p_2017 VALUES LESS THAN (2017) ENGINE = InnoDB,
+ PARTITION p_2018 VALUES LESS THAN (2018) ENGINE = InnoDB,
+ PARTITION p_2019 VALUES LESS THAN (2019) ENGINE = InnoDB,
+PARTITION p_others VALUES LESS THAN MAXVALUE ENGINE = InnoDB);
+insert into t values('2017-4-1',1),('2018-4-1',1);
+```
+
+这个表包含了一个.frm 文件和 4 个.ibd 文件，每个分区对应一个.ibd 文件。也就是说：**对于引擎层来说，这是 4 个表；对于 Server 层来说，这是 1 个表**。
+
+分区表和手工分表，一个是由 server 层来决定使用哪个分区，一个是由应用层代码来决定使用哪个分表。因此，从引擎层看，这两种方式也是没有差别的。
+
+### 分区策略
+
+从 MySQL 5.7.9 开始，InnoDB 引擎引入了本地分区策略（native partitioning）。这个策略是在 InnoDB 内部自己管理打开分区的行为。
+
+### 分区表的 server 层行为
+
+如果从 server 层看的话，一个分区表就只是一个表。
+
+![](./imgs/0eca5a3190161e59ea58493915bd5e81.png)
+
+虽然 session B 只需要操作 p_2107 这个分区，但是由于 session A 持有整个表 t 的 MDL 锁，就导致了 session B 的 alter 语句被堵住。
+
+这也是 DBA 同学经常说的，分区表，在做 DDL 的时候，影响会更大。
+
+1. MySQL 在第一次打开分区表的时候，需要访问所有的分区；
+2. 在 server 层，认为这是同一张表，因此所有分区共用同一个 MDL 锁；
+3. 在引擎层，认为这是不同的表，因此 MDL 锁之后的执行过程，会根据分区表规则，只访问必要的分区。
+
+###分区表的应用场景
+分区表的一个显而易见的优势是对业务透明，相对于用户分表来说，使用分区表的业务代码更简洁。还有，分区表可以很方便的清理历史数据。可以直接通过 alter table t drop partition …这个语法删掉分区，从而删掉过期的历史数据。
+
+### Summary
+
+1. 分区并不是越细越好。实际上，单表或者单分区的数据一千万行，只要没有特别大的索引，对于现在的硬件能力来说都已经是小表了。
+2. 分区也不要提前预留太多，在使用之前预先创建即可。比如，如果是按月分区，每年年底时再把下一年度的 12 个新分区创建上即可。对于没有数据的历史分区，要及时的 drop 掉。
+
+## 44 | 答疑文章（三）：说一说这些好问题
+
+### join 的写法
+
+```sql
+create table a(f1 int, f2 int, index(f1))engine=innodb;
+create table b(f1 int, f2 int)engine=innodb;
+insert into a values(1,1),(2,2),(3,3),(4,4),(5,5),(6,6);
+insert into b values(3,3),(4,4),(5,5),(6,6),(7,7),(8,8);
+```
+
+![](./imgs/871f890532349781fdc4a4287e9f91bd.png)
+
+我们先一起看看语句 Q1 的 explain 结果：
+
+![](./imgs/b7f27917ceb0be90ef7b201f2794c817.png)
+
+驱动表是表 a，被驱动表是表 b；由于表 b 的 f1 字段上没有索引，所以使用的是 Block Nested Loop Join（简称 BNL） 算法。
+
+这条语句确实是以表 a 为驱动表.
+
+Q2 的 explain 结果
+
+![](./imgs/f5712c56dc84d331990409a5c313ea9c.png)
+
+可以看到，这条语句是以表 b 为驱动表的。而如果一条 join 语句的 Extra 字段什么都没写的话，就表示使用的是 Index Nested-Loop Join（简称 NLJ）算法。
+
+因此，语句 Q2 的执行流程是这样的：**顺序扫描表 b，每一行用 b.f1 到表 a 中去查，匹配到记录后判断 a.f2=b.f2 是否满足，满足条件的话就作为结果集的一部分返回**。
+
+
+语句 Q2 里面 where a.f2=b.f2 就表示，查询结果里面不会包含 b.f2 是 NULL 的行，这样这个 left join 的语义就是“找到这两个表里面，f1、f2 对应相同的行.这条语句虽然用的是 left join，但是语义跟 join 是一致的。
+
+因此，优化器就把这条语句的 left join 改写成了 join，然后因为表 a 的 f1 上有索引，就把表 b 作为驱动表，这样就可以用上 NLJ 算法。
+
+**如果需要 left join 的语义，就不能把被驱动表的字段放在 where 条件里面做等值判断或不等值判断，必须都写在 on 里面。如果是inner join，就没有区别了。**
+
+
+### distinct 和 group by 的性能
+
+这两条语句的执行流程是下面这样的。
+1. 创建一个临时表，临时表有一个字段 a，并且在这个字段 a 上创建一个唯一索引；
+2. 遍历表 t，依次取数据插入临时表中：如果发现唯一键冲突，就跳过；否则插入成功；
+3. 遍历完成后，将临时表作为结果集返回给客户端。
+
+
+
+
