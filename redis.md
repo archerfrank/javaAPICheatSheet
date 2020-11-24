@@ -459,4 +459,145 @@ Kafka、RabbitMQ 部署时，涉及额外的组件，例如 Kafka 的运行就�
 
 从库加载 RDB 文件：把主库的数据量大小控制在 2~4GB 左右，以保证 RDB 文件能以较快的速度加载。
 
+## 17 | 为什么CPU结构也会影响Redis的性能？
+
+![](./imgs/5ceb2ab6f61c064284c8f8811431bc3d.jpg)
+
+如果应用程序先在一个 Socket 上运行，并且把数据保存到了内存，然后被调度到另一个 Socket 上运行，此时，应用程序再进行内存访问时，就需要访问之前 Socket 上连接的内存，和访问 Socket 直接连接的内存相比，远端内存访问会增加应用程序的延迟。在多 CPU 架构下，一个应用程序访问所在 Socket 的本地内存和访问远端内存的延迟并不一致，所以，我们也把这个架构称为非统一内存访问架构（Non-Uniform Memory Access，NUMA 架构）。
+
+### CPU 多核对 Redis 性能的影响
+
+我们要避免 Redis 总是在不同 CPU 核上来回调度执行。于是，我们尝试着把 Redis 实例和 CPU 核绑定了，让一个 Redis 实例固定运行在一个 CPU 核上。我们可以使用 taskset 命令把一个程序绑定在一个核上运行。
+
+我们执行下面的命令，就把 Redis 实例绑在了 0 号核上，其中，“-c”选项用于设置要绑定的核编号。
+
+```
+taskset -c 0 ./redis-server
+```
+
+在实际应用 Redis 时，我经常看到一种做法，为了提升 Redis 的网络性能，把操作系统的网络中断处理程序和 CPU 核绑定。这个做法可以避免网络中断处理程序在不同核上来回调度执行，的确能有效提升 Redis 的网络处理性能。
+
+如果网络中断处理程序和 Redis 实例各自所绑的 CPU 核不在同一个 CPU Socket 上，那么，Redis 实例读取网络数据时，就需要跨 CPU Socket 访问内存，这个过程会花费较多时间。
+
+![](./imgs/41f02b2afb08ec54249680e8cac30179.jpg)
+
+![](./imgs/30cd42yy86debc0eb6e7c5b069533ab0.jpg)
+
+我建议你把 Redis 实例和网络中断处理程序绑在同一个 CPU Socket 下的不同核上，这样可以提升 Redis 的运行性能。
+
+### 绑核的风险和解决方案
+
+Redis 除了主线程以外，还有用于 RDB 生成和 AOF 重写的子进程（可以回顾看下第 4 讲和第 5 讲）。此外，我们还在第 16 讲学习了 Redis 的后台线程。
+
+方案一：一个 Redis 实例对应绑一个物理核在给 Redis 实例绑核时，我们不要把一个实例和一个逻辑核绑定，而要和一个物理核绑定，也就是说，把一个物理核的 2 个逻辑核都用上。
+
+```
+taskset -c 0,12 ./redis-server
+```
+就把 Redis 实例绑定到了逻辑核 0 和 12 上，而这两个核正好都属于物理核 1
+
+## 18 | 波动的响应延迟：如何应对变慢的Redis？（上）
+
+### Redis 自身操作特性的影响
+
+1. 用其他高效命令代替。比如说，如果你需要返回一个 SET 中的所有成员时，不要使用 SMEMBERS 命令，而是要使用 SSCAN 多次迭代返回，避免一次返回大量数据，造成线程阻塞。
+2. 当你需要执行排序、交集、并集操作时，可以在客户端完成，而不要用 SORT、SUNION、SINTER 这些命令，以免拖慢 Redis 实例。
+
+
+因为 KEYS 命令需要遍历存储的键值对，所以操作延时高。如果你不了解它的实现而使用了它，就会导致 Redis 性能变慢。所以，KEYS 命令一般不被建议用于生产环境中。
+
+排查过期 key 的时间设置，并根据实际使用需求，设置不同的过期时间。
+
+## 19 | 波动的响应延迟：如何应对变慢的Redis？（下）
+
+### 操作系统：swap
+
+当出现百 MB，甚至 GB 级别的 swap 大小时，就表明，此时，Redis 实例的内存压力很大，很有可能会变慢。所以，swap 的大小是排查 Redis 性能变慢是否由 swap 引起的重要指标。
+
+### 操作系统：内存大页
+
+关闭内存大页，就行了。
+
+```
+cat /sys/kernel/mm/transparent_hugepage/enabled
+
+
+echo never /sys/kernel/mm/transparent_hugepage/enabled
+```
+
+
+关于如何分析、排查、解决Redis变慢问题，我总结的checklist如下：
+
+1、使用复杂度过高的命令（例如SORT/SUION/ZUNIONSTORE/KEYS），或一次查询全量数据（例如LRANGE key 0 N，但N很大）
+
+分析：a) 查看slowlog是否存在这些命令 b) Redis进程CPU使用率是否飙升（聚合运算命令导致）
+
+解决：a) 不使用复杂度过高的命令，或用其他方式代替实现（放在客户端做） b) 数据尽量分批查询（LRANGE key 0 N，建议N<=100，查询全量数据建议使用HSCAN/SSCAN/ZSCAN）
+
+2、操作bigkey
+
+分析：a) slowlog出现很多SET/DELETE变慢命令（bigkey分配内存和释放内存变慢） b) 使用redis-cli -h $host -p $port --bigkeys扫描出很多bigkey
+
+解决：a) 优化业务，避免存储bigkey b) Redis 4.0+可开启lazy-free机制
+
+3、大量key集中过期
+
+分析：a) 业务使用EXPIREAT/PEXPIREAT命令 b) Redis info中的expired_keys指标短期突增
+
+解决：a) 优化业务，过期增加随机时间，把时间打散，减轻删除过期key的压力 b) 运维层面，监控expired_keys指标，有短期突增及时报警排查
+
+4、Redis内存达到maxmemory
+
+分析：a) 实例内存达到maxmemory，且写入量大，淘汰key压力变大 b) Redis info中的evicted_keys指标短期突增
+
+解决：a) 业务层面，根据情况调整淘汰策略（随机比LRU快） b) 运维层面，监控evicted_keys指标，有短期突增及时报警 c) 集群扩容，多个实例减轻淘汰key的压力
+
+5、大量短连接请求
+
+分析：Redis处理大量短连接请求，TCP三次握手和四次挥手也会增加耗时
+
+解决：使用长连接操作Redis
+
+6、生成RDB和AOF重写fork耗时严重
+
+分析：a) Redis变慢只发生在生成RDB和AOF重写期间 b) 实例占用内存越大，fork拷贝内存页表越久 c) Redis info中latest_fork_usec耗时变长
+
+解决：a) 实例尽量小 b) Redis尽量部署在物理机上 c) 优化备份策略（例如低峰期备份） d) 合理配置repl-backlog和slave client-output-buffer-limit，避免主从全量同步 e) 视情况考虑关闭AOF f) 监控latest_fork_usec耗时是否变长
+
+7、AOF使用awalys机制
+
+分析：磁盘IO负载变高
+
+解决：a) 使用everysec机制 b) 丢失数据不敏感的业务不开启AOF
+
+8、使用Swap
+
+分析：a) 所有请求全部开始变慢 b) slowlog大量慢日志 c) 查看Redis进程是否使用到了Swap
+
+解决：a) 增加机器内存 b) 集群扩容 c) Swap使用时监控报警
+
+9、进程绑定CPU不合理
+
+分析：a) Redis进程只绑定一个CPU逻辑核 b) NUMA架构下，网络中断处理程序和Redis进程没有绑定在同一个Socket下
+
+解决：a) Redis进程绑定多个CPU逻辑核 b) 网络中断处理程序和Redis进程绑定在同一个Socket下
+
+10、开启透明大页机制
+
+分析：生成RDB和AOF重写期间，主线程处理写请求耗时变长（拷贝内存副本耗时变长）
+
+解决：关闭透明大页机制
+
+11、网卡负载过高
+
+分析：a) TCP/IP层延迟变大，丢包重传变多 b) 是否存在流量过大的实例占满带宽
+
+解决：a) 机器网络资源监控，负载过高及时报警 b) 提前规划部署策略，访问量大的实例隔离部署
+
+总之，Redis的性能与CPU、内存、网络、磁盘都息息相关，任何一处发生问题，都会影响到Redis的性能。
+
+主要涉及到的包括业务使用层面和运维层面：业务人员需要了解Redis基本的运行原理，使用合理的命令、规避bigke问题和集中过期问题。运维层面需要DBA提前规划好部署策略，预留足够的资源，同时做好监控，这样当发生问题时，能够及时发现并尽快处理。
+
+
+
 
