@@ -599,5 +599,42 @@ echo never /sys/kernel/mm/transparent_hugepage/enabled
 主要涉及到的包括业务使用层面和运维层面：业务人员需要了解Redis基本的运行原理，使用合理的命令、规避bigke问题和集中过期问题。运维层面需要DBA提前规划好部署策略，预留足够的资源，同时做好监控，这样当发生问题时，能够及时发现并尽快处理。
 
 
+## 20 | 删除数据后，为什么内存占用率还是很高？
+
+### 如何判断是否有内存碎片？
+
+```
+
+INFO memory
+# Memory
+used_memory:1073741736
+used_memory_human:1024.00M
+used_memory_rss:1997159792
+used_memory_rss_human:1.86G
+…
+mem_fragmentation_ratio:1.86
+```
+
+这里有一个 mem_fragmentation_ratio 的指标，它表示的就是 Redis 当前的内存碎片率。那么，这个碎片率是怎么计算的呢？其实，就是上面的命令中的两个指标 used_memory_rss 和 used_memory 相除的结果。
+
+used_memory_rss 是操作系统实际分配给 Redis 的物理内存空间，里面就包含了碎片；而 used_memory 是 Redis 为了保存数据实际申请使用的空间。
+
+mem_fragmentation_ratio 大于 1 但小于 1.5。这种情况是合理的。
+
+mem_fragmentation_ratio小于1，说明used_memory_rss小于了used_memory，这意味着操作系统分配给Redis进程的物理内存，要小于Redis实际存储数据的内存，也就是说Redis没有足够的物理内存可以使用了，这会导致Redis一部分内存数据会被换到Swap中，之后当Redis访问Swap中的数据时，延迟会变大，性能下降。
+
+### 如何清理内存碎片？
+
+1. 重启 Redis 实例
+2. 从 4.0-RC3 版本以后，Redis 自身提供了一种内存碎片自动清理的方法
+
+active-defrag-ignore-bytes 100mb：表示内存碎片的字节数达到 100MB 时，开始清理；
+
+active-defrag-threshold-lower 10：表示内存碎片空间占操作系统分配给 Redis 的总空间比例达到 10% 时，开始清理。
+
+## 21 | 缓冲区：一个可能引发“惨案”的地方
+
+
+
 
 
