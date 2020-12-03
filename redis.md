@@ -1178,3 +1178,5 @@ io-threads  6
 
 40 | Redis的下一步：基于NVM内存的实践
 
+mmap可持久化的内存，这样可以不使用RDB， AOF来恢复了。
+
