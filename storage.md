@@ -491,7 +491,7 @@ LSM-Tree 的全称是：The Log-Structured Merge-Tree，是一种非常复杂的
 
 ![](./imgs/c0ba7aa330ea79a8a1dfe3a58547526e.jpg)
 
-当 LSM-Tree 收到一个写请求，比如说：PUT foo bar，把 Key foo 的值设置为 bar。首先，这条操作命令会被写入到磁盘的 WAL 日志中（图中右侧的 Log），这是一个顺序写磁盘的操作，性能很好。Level 0 是无序的，所以一般Level只保存很少的几个文件。Level 0的查找顺序就是按照文件的创建顺序倒序查找，也就是从最新的向最旧的查找
+当 LSM-Tree 收到一个写请求，比如说：PUT foo bar，把 Key foo 的值设置为 bar。首先，这条操作命令会被写入到磁盘的 WAL 日志中（图中右侧的 Log），这是一个顺序写磁盘的操作，性能很好。**Level 0 是无序的，所以一般Level只保存很少的几个文件。Level 0的查找顺序就是按照文件的创建顺序倒序查找，也就是从最新的向最旧的查找**
 
 然后数据会被写入到内存中的 MemTable 中，这个 MemTable 就是一个按照 Key 组织的跳表（SkipList），跳表和平衡树有着类似的查找性能，但实现起来更简单一些。写 MemTable 是个内存操作，速度也非常快。数据写入到 MemTable 之后，就可以返回写入成功了。这里面有一点需要注意的是，LSM-Tree 在处理写入的过程中，直接就往 MemTable 里写，并不去查找这个 Key 是不是已经存在了。
 
