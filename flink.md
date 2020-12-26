@@ -546,3 +546,339 @@ Flink executes [batch programs](https://ci.apache.org/projects/flink/flink-docs-
 - Stateful operations in the DataSet API use simplified in-memory/out-of-core data structures, rather than key/value indexes.
 - The DataSet API introduces special synchronized (superstep-based) iterations, which are only possible on bounded streams. For details, check out the [iteration docs](https://ci.apache.org/projects/flink/flink-docs-release-1.12/dev/batch/iterations.html).
 
+
+
+# Execution Mode (Batch/Streaming)
+
+
+
+Here’s how you can configure the execution mode via the command line:
+
+```
+$ bin/flink run -Dexecution.runtime-mode=BATCH examples/streaming/WordCount.jar
+```
+
+This example shows how you can configure the execution mode in code:
+
+```
+StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+env.setRuntimeMode(RuntimeExecutionMode.BATCH);
+```
+
+ **Note:** We recommend users to NOT set the runtime mode in their program but to instead set it using the command-line when submitting the application. Keeping the application code configuration-free allows for more flexibility as the same application can be executed in any execution mode.
+
+
+
+```java
+StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+
+DataStreamSource<String> source = env.fromElements(...);
+
+source.name("source")
+	.map(...).name("map1")
+	.map(...).name("map2")
+	.rebalance()
+	.map(...).name("map3")
+	.map(...).name("map4")
+	.keyBy((value) -> value)
+	.map(...).name("map5")
+	.map(...).name("map6")
+	.sinkTo(...).name("sink");
+```
+
+Operations that imply a 1-to-1 connection pattern between operations, such as `map()`, `flatMap()`, or `filter()` can just forward data straight to the next operation, which allows these operations to be chained together. This means that Flink would not normally insert a network shuffle between them.
+
+Operation such as `keyBy()` or `rebalance()` on the other hand require data to be shuffled between different parallel instances of tasks. This induces a network shuffle.
+
+For the above example Flink would group operations together as tasks like this:
+
+- Task1: `source`, `map1`, and `map2`
+- Task2: `map3`, `map4`
+- Task3: `map5`, `map6`, and `sink`
+
+And we have a network shuffle between Tasks 1 and 2, and also Tasks 2 and 3. This is a visual representation of that job:
+
+![](./imgs/datastream-example-job-graph.svg)
+
+### Network Shuffle
+
+In `BATCH` execution mode, **the tasks of a job can be separated into stages that can be executed one after another.** 
+
+Instead of sending records immediately to downstream tasks, as explained above for `STREAMING` mode, processing in stages requires Flink to materialize intermediate results of tasks to some non-ephemeral storage which allows downstream tasks to read them after upstream tasks have already gone off line. This will increase the latency of processing but comes with other interesting properties. For one, this allows Flink to backtrack to the latest available results when a failure happens instead of restarting the whole job. Another side effect is that `BATCH` jobs can execute on fewer resources (in terms of available slots at TaskManagers) because the system can execute tasks sequentially one after the other.
+
+### State Backends / State
+
+In `BATCH` mode, the configured state backend is ignored. Instead, **the input of a keyed operation is grouped by key (using sorting) and then we process all records of a key in turn**. This allows keeping only the state of only one key at the same time. State for a given key will be discarded when moving on to the next key.
+
+### Event Time / Watermarks
+
+in `BATCH` mode, we only need a `MAX_WATERMARK` **at the end of the input associated with each key, or at the end of input if the input stream is not keyed**. Based on this scheme, all registered timers will fire at the *end of time* and user-defined `WatermarkAssigners` or `WatermarkGenerators` are ignored. Specifying a `WatermarkStrategy` is still important, though, because its `TimestampAssigner` will still be used to assign timestamps to records.
+
+Behavior Change in BATCH mode:
+
+- “Rolling” operations such as [reduce()](https://ci.apache.org/projects/flink/flink-docs-release-1.12/dev/stream/operators/#reduce) or [sum()](https://ci.apache.org/projects/flink/flink-docs-release-1.12/dev/stream/operators/#aggregations) emit an incremental update for every new record that arrives in `STREAMING` mode. In `BATCH` mode, these operations are not “rolling”. They emit only the final result.
+
+
+
+### Failure Recovery
+
+In `BATCH` execution mode, Flink will try and backtrack to previous processing stages for which intermediate results are still available. Potentially, only the tasks that failed (or their predecessors in the graph) will have to be restarted, which can improve processing efficiency and overall processing time of the job compared to restarting all tasks from a checkpoint.
+
+### Writing Custom Operators
+
+First of all you should not cache the last seen watermark within an operator. In `BATCH` mode we process records key by key. As a result, the Watermark will switch from `MAX_VALUE` to `MIN_VALUE` between each key. You should not assume that the Watermark will always be ascending in an operator. For the same reasons timers will fire first in key order and then in timestamp order within each key. Moreover, operations that change a key manually are not supported.
+
+
+
+# Generating Watermarks
+
+The Flink API expects a `WatermarkStrategy` that contains both a `TimestampAssigner` and `WatermarkGenerator`. A number of common strategies are available out of the box as static methods on `WatermarkStrategy`, but users can also build their own strategies when required.
+
+Here is the interface for completeness’ sake:
+
+```java
+public interface WatermarkStrategy<T> extends TimestampAssignerSupplier<T>, WatermarkGeneratorSupplier<T>{
+
+    /**
+     * Instantiates a {@link TimestampAssigner} for assigning timestamps according to this
+     * strategy.
+     */
+    @Override
+    TimestampAssigner<T> createTimestampAssigner(TimestampAssignerSupplier.Context context);
+
+    /**
+     * Instantiates a WatermarkGenerator that generates watermarks according to this strategy.
+     */
+    @Override
+    WatermarkGenerator<T> createWatermarkGenerator(WatermarkGeneratorSupplier.Context context);
+}
+```
+
+```java
+WatermarkStrategy
+        .<Tuple2<Long, String>>forBoundedOutOfOrderness(Duration.ofSeconds(20))
+        .withTimestampAssigner((event, timestamp) -> event.f0);
+```
+
+
+
+## Writing WatermarkGenerators
+
+A periodic generator usually observes the incoming events via `onEvent()` and then emits a watermark when the framework calls `onPeriodicEmit()`.
+
+
+
+A puncutated generator will look at events in `onEvent()` and wait for special *marker events* or *punctuations* that carry watermark information in the stream. 
+
+```java
+/**
+ * This generator generates watermarks assuming that elements arrive out of order,
+ * but only to a certain degree. The latest elements for a certain timestamp t will arrive
+ * at most n milliseconds after the earliest elements for timestamp t.
+ */
+public class BoundedOutOfOrdernessGenerator implements WatermarkGenerator<MyEvent> {
+
+    private final long maxOutOfOrderness = 3500; // 3.5 seconds
+
+    private long currentMaxTimestamp;
+
+    @Override
+    public void onEvent(MyEvent event, long eventTimestamp, WatermarkOutput output) {
+        currentMaxTimestamp = Math.max(currentMaxTimestamp, eventTimestamp);
+    }
+
+    @Override
+    public void onPeriodicEmit(WatermarkOutput output) {
+        // emit the watermark as current highest timestamp minus the out-of-orderness bound
+        output.emitWatermark(new Watermark(currentMaxTimestamp - maxOutOfOrderness - 1));
+    }
+
+}
+
+/**
+ * This generator generates watermarks that are lagging behind processing time by a fixed amount.
+ * It assumes that elements arrive in Flink after a bounded delay.
+ */
+public class TimeLagWatermarkGenerator implements WatermarkGenerator<MyEvent> {
+
+    private final long maxTimeLag = 5000; // 5 seconds
+
+    @Override
+    public void onEvent(MyEvent event, long eventTimestamp, WatermarkOutput output) {
+        // don't need to do anything because we work on processing time
+    }
+
+    @Override
+    public void onPeriodicEmit(WatermarkOutput output) {
+        output.emitWatermark(new Watermark(System.currentTimeMillis() - maxTimeLag));
+    }
+}
+
+public class PunctuatedAssigner implements WatermarkGenerator<MyEvent> {
+
+    @Override
+    public void onEvent(MyEvent event, long eventTimestamp, WatermarkOutput output) {
+        if (event.hasWatermarkMarker()) {
+            output.emitWatermark(new Watermark(event.getWatermarkTimestamp()));
+        }
+    }
+
+    @Override
+    public void onPeriodicEmit(WatermarkOutput output) {
+        // don't need to do anything because we emit in reaction to events above
+    }
+}
+```
+
+## Watermark Strategies and the Kafka Connector
+
+you can use Flink’s Kafka-partition-aware watermark generation. Using that feature, watermarks are generated inside the Kafka consumer, per Kafka partition, and the per-partition watermarks are merged in the same way as watermarks are merged on stream shuffles.
+
+
+
+```java
+FlinkKafkaConsumer<MyType> kafkaSource = new FlinkKafkaConsumer<>("myTopic", schema, props);
+kafkaSource.assignTimestampsAndWatermarks(
+        WatermarkStrategy.
+                .forBoundedOutOfOrderness(Duration.ofSeconds(20)));
+
+DataStream<MyType> stream = env.addSource(kafkaSource);
+```
+
+
+
+![](./imgs/parallel_kafka_watermarks.svg)
+
+## How Operators Process Watermarks
+
+As a general rule, operators are required to completely process a given watermark before forwarding it downstream. For example, `WindowOperator` will first evaluate all windows that should be fired, and only after producing all of the output triggered by the watermark will the watermark itself be sent downstream. In other words, **all elements produced due to occurrence of a watermark will be emitted before the watermark.**
+
+
+
+The same rule applies to `TwoInputStreamOperator`. However, in this case the current watermark of the operator is defined as the minimum of both of its inputs.
+
+
+
+# Working with State
+
+
+
+## Using Keyed State
+
+
+
+- `ValueState<T>`: This keeps a value that can be updated and retrieved (scoped to key of the input element as mentioned above, so there will possibly be one value for each key that the operation sees). The value can be set using `update(T)` and retrieved using `T value()`.
+- `ListState<T>`: This keeps a list of elements. You can append elements and retrieve an `Iterable` over all currently stored elements. Elements are added using `add(T)` or `addAll(List<T>)`, the Iterable can be retrieved using `Iterable<T> get()`. You can also override the existing list with `update(List<T>)`
+- `ReducingState<T>`: This keeps a single value that represents the aggregation of all values added to the state. The interface is similar to `ListState` but elements added using `add(T)` are reduced to an aggregate using a specified `ReduceFunction`.
+- `AggregatingState<IN, OUT>`: This keeps a single value that represents the aggregation of all values added to the state. Contrary to `ReducingState`, the aggregate type may be different from the type of elements that are added to the state. The interface is the same as for `ListState` but elements added using `add(IN)` are aggregated using a specified `AggregateFunction`.
+- `MapState<UK, UV>`: This keeps a list of mappings. You can put key-value pairs into the state and retrieve an `Iterable` over all currently stored mappings. Mappings are added using `put(UK, UV)` or `putAll(Map<UK, UV>)`. The value associated with a user key can be retrieved using `get(UK)`. The iterable views for mappings, keys and values can be retrieved using `entries()`, `keys()` and `values()` respectively. You can also use `isEmpty()` to check whether this map contains any key-value mappings.
+
+All types of state also have a method `clear()` that clears the state for the currently active key, i.e. the key of the input element.
+
+### State Time-To-Live (TTL)
+
+```
+import org.apache.flink.api.common.state.StateTtlConfig;
+import org.apache.flink.api.common.state.ValueStateDescriptor;
+import org.apache.flink.api.common.time.Time;
+
+StateTtlConfig ttlConfig = StateTtlConfig
+    .newBuilder(Time.seconds(1))
+    .setUpdateType(StateTtlConfig.UpdateType.OnCreateAndWrite)
+    .setStateVisibility(StateTtlConfig.StateVisibility.NeverReturnExpired)
+    .build();
+    
+ValueStateDescriptor<String> stateDescriptor = new ValueStateDescriptor<>("text state", String.class);
+stateDescriptor.enableTimeToLive(ttlConfig);
+```
+
+The configuration has several options to consider:
+
+The first parameter of the `newBuilder` method is mandatory, it is the time-to-live value.
+
+The update type configures when the state TTL is refreshed (by default `OnCreateAndWrite`):
+
+- `StateTtlConfig.UpdateType.OnCreateAndWrite` - only on creation and write access
+- `StateTtlConfig.UpdateType.OnReadAndWrite` - also on read access
+
+The state visibility configures whether the expired value is returned on read access if it is not cleaned up yet (by default `NeverReturnExpired`):
+
+- `StateTtlConfig.StateVisibility.NeverReturnExpired` - expired value is never returned
+- `StateTtlConfig.StateVisibility.ReturnExpiredIfNotCleanedUp` - returned if still available
+
+## Operator State
+
+*Operator State* (or *non-keyed state*) is state that is is bound to one parallel operator instance. The [Kafka Connector](https://ci.apache.org/projects/flink/flink-docs-release-1.12/dev/connectors/kafka.html) is a good motivating example for the use of Operator State in Flink. Each parallel instance of the Kafka consumer maintains a map of topic partitions and offsets as its Operator State.
+
+The Operator State interfaces support redistributing state among parallel operator instances when the parallelism is changed. There are different schemes for doing this redistribution.
+
+#### CheckpointedFunction
+
+The `CheckpointedFunction` interface provides access to non-keyed state with different redistribution schemes. It requires the implementation of two methods:
+
+```java
+void snapshotState(FunctionSnapshotContext context) throws Exception;
+
+void initializeState(FunctionInitializationContext context) throws Exception;
+```
+
+**Even-split redistribution:** Each operator returns a List of state elements. The whole state is logically a concatenation of all lists. On restore/redistribution, the list is evenly divided into as many sublists as there are parallel operators. Each operator gets a sublist, which can be empty, or contain one or more elements. As an example, if with parallelism 1 the checkpointed state of an operator contains elements `element1` and `element2`, when increasing the parallelism to 2, `element1` may end up in operator instance 0, while `element2` will go to operator instance 1.
+
+
+
+### Stateful Source Functions
+
+Stateful sources require a bit more care as opposed to other operators. In order to make the updates to the state and output collection atomic (required for exactly-once semantics on failure/recovery), the user is required to get a lock from the source’s context.
+
+```java
+public static class CounterSource
+        extends RichParallelSourceFunction<Long>
+        implements CheckpointedFunction {
+
+    /**  current offset for exactly once semantics */
+    private Long offset = 0L;
+
+    /** flag for job cancellation */
+    private volatile boolean isRunning = true;
+    
+    /** Our state object. */
+    private ListState<Long> state;
+
+    @Override
+    public void run(SourceContext<Long> ctx) {
+        final Object lock = ctx.getCheckpointLock();
+
+        while (isRunning) {
+            // output and state update are atomic
+            synchronized (lock) {
+                ctx.collect(offset);
+                offset += 1;
+            }
+        }
+    }
+
+    @Override
+    public void cancel() {
+        isRunning = false;
+    }
+
+    @Override
+    public void initializeState(FunctionInitializationContext context) throws Exception {
+        state = context.getOperatorStateStore().getListState(new ListStateDescriptor<>(
+                "state",
+                LongSerializer.INSTANCE));
+                
+        // restore any state that we might already have to our fields, initialize state
+        // is also called in case of restore.
+        for (Long l : state.get()) {
+            offset = l;
+        }
+    }
+
+    @Override
+    public void snapshotState(FunctionSnapshotContext context) throws Exception {
+        state.clear();
+        state.add(offset);
+    }
+}
+```
