@@ -882,3 +882,485 @@ public static class CounterSource
     }
 }
 ```
+
+
+
+
+
+# The Broadcast State Pattern
+
+
+
+This is similar to Global KTable in Kafka, it feed the global data to other stream.
+
+
+
+Coming back to our original example, our `KeyedBroadcastProcessFunction` could look like the following:
+
+```java
+new KeyedBroadcastProcessFunction<Color, Item, Rule, String>() {
+
+    // store partial matches, i.e. first elements of the pair waiting for their second element
+    // we keep a list as we may have many first elements waiting
+    private final MapStateDescriptor<String, List<Item>> mapStateDesc =
+        new MapStateDescriptor<>(
+            "items",
+            BasicTypeInfo.STRING_TYPE_INFO,
+            new ListTypeInfo<>(Item.class));
+
+    // identical to our ruleStateDescriptor above
+    private final MapStateDescriptor<String, Rule> ruleStateDescriptor = 
+        new MapStateDescriptor<>(
+            "RulesBroadcastState",
+            BasicTypeInfo.STRING_TYPE_INFO,
+            TypeInformation.of(new TypeHint<Rule>() {}));
+	//更新rule的规则，这个规则是更新到全部的stream的。
+    @Override
+    public void processBroadcastElement(Rule value,
+                                        Context ctx,
+                                        Collector<String> out) throws Exception {
+        ctx.getBroadcastState(ruleStateDescriptor).put(value.name, value);
+    }
+
+    @Override
+    public void processElement(Item value,
+                               ReadOnlyContext ctx,
+                               Collector<String> out) throws Exception {
+
+        final MapState<String, List<Item>> state = getRuntimeContext().getMapState(mapStateDesc);
+        final Shape shape = value.getShape();
+    
+        for (Map.Entry<String, Rule> entry :
+                ctx.getBroadcastState(ruleStateDescriptor).immutableEntries()) {
+            final String ruleName = entry.getKey();
+            final Rule rule = entry.getValue();
+    
+            List<Item> stored = state.get(ruleName);
+            if (stored == null) {
+                stored = new ArrayList<>();
+            }
+    //和最新的rule的规则对比。
+            if (shape == rule.second && !stored.isEmpty()) {
+                for (Item i : stored) {
+                    out.collect("MATCH: " + i + " - " + value);
+                }
+                stored.clear();
+            }
+    
+            // there is no else{} to cover if rule.first == rule.second
+            if (shape.equals(rule.first)) {
+                stored.add(value);
+            }
+    
+            if (stored.isEmpty()) {
+                state.remove(ruleName);
+            } else {
+                state.put(ruleName, stored);
+            }
+        }
+    }
+}
+```
+
+# Checkpointing
+
+
+
+```java
+StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+
+// start a checkpoint every 1000 ms
+env.enableCheckpointing(1000);
+
+// advanced options:
+
+// set mode to exactly-once (this is the default)
+env.getCheckpointConfig().setCheckpointingMode(CheckpointingMode.EXACTLY_ONCE);
+
+// make sure 500 ms of progress happen between checkpoints
+env.getCheckpointConfig().setMinPauseBetweenCheckpoints(500);
+
+// checkpoints have to complete within one minute, or are discarded
+env.getCheckpointConfig().setCheckpointTimeout(60000);
+
+// allow only one checkpoint to be in progress at the same time
+env.getCheckpointConfig().setMaxConcurrentCheckpoints(1);
+
+// enable externalized checkpoints which are retained after job cancellation
+env.getCheckpointConfig().enableExternalizedCheckpoints(ExternalizedCheckpointCleanup.RETAIN_ON_CANCELLATION);
+
+// enables the experimental unaligned checkpoints
+env.getCheckpointConfig.enableUnalignedCheckpoints();
+```
+
+
+
+# Queryable State Beta
+
+The following example extends the `CountWindowAverage` example (see [Using Managed Keyed State](https://ci.apache.org/projects/flink/flink-docs-release-1.12/dev/stream/state/state.html#using-managed-keyed-state)) by making it queryable and shows how to query this value:
+
+
+
+```java
+public class CountWindowAverage extends RichFlatMapFunction<Tuple2<Long, Long>, Tuple2<Long, Long>> {
+
+    private transient ValueState<Tuple2<Long, Long>> sum; // a tuple containing the count and the sum
+
+    @Override
+    public void flatMap(Tuple2<Long, Long> input, Collector<Tuple2<Long, Long>> out) throws Exception {
+        Tuple2<Long, Long> currentSum = sum.value();
+        currentSum.f0 += 1;
+        currentSum.f1 += input.f1;
+        sum.update(currentSum);
+
+        if (currentSum.f0 >= 2) {
+            out.collect(new Tuple2<>(input.f0, currentSum.f1 / currentSum.f0));
+            sum.clear();
+        }
+    }
+
+    @Override
+    public void open(Configuration config) {
+        ValueStateDescriptor<Tuple2<Long, Long>> descriptor =
+                new ValueStateDescriptor<>(
+                        "average", // the state name
+                        TypeInformation.of(new TypeHint<Tuple2<Long, Long>>() {})); // type information
+        descriptor.setQueryable("query-name");
+        sum = getRuntimeContext().getState(descriptor);
+    }
+}
+```
+
+Once used in a job, you can retrieve the job ID and then query any key’s current state from this operator:
+
+```java
+CompletableFuture<S> getKvState(
+    JobID jobId,
+    String queryableStateName,
+    K key,
+    TypeInformation<K> keyTypeInfo,
+    StateDescriptor<S, V> stateDescriptor)
+```
+
+```java
+QueryableStateClient client = new QueryableStateClient(tmHostname, proxyPort);
+
+// the state descriptor of the state to be fetched.
+ValueStateDescriptor<Tuple2<Long, Long>> descriptor =
+        new ValueStateDescriptor<>(
+          "average",
+          TypeInformation.of(new TypeHint<Tuple2<Long, Long>>() {}));
+
+CompletableFuture<ValueState<Tuple2<Long, Long>>> resultFuture =
+        client.getKvState(jobId, "query-name", key, BasicTypeInfo.LONG_TYPE_INFO, descriptor);
+
+// now handle the returned value
+resultFuture.thenAccept(response -> {
+        try {
+            Tuple2<Long, Long> res = response.get();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+});
+```
+
+# State Schema Evolution
+
+### POJO types
+
+Flink supports evolving schema of [POJO types](https://ci.apache.org/projects/flink/flink-docs-release-1.12/dev/types_serialization.html#rules-for-pojo-types), based on the following set of rules:
+
+1. Fields can be removed. Once removed, the previous value for the removed field will be dropped in future checkpoints and savepoints.
+2. New fields can be added. The new field will be initialized to the default value for its type, as [defined by Java](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html).
+3. Declared fields types cannot change.
+4. Class name of the POJO type cannot change, including the namespace of the class.
+
+Note that the schema of POJO type state can only be evolved when restoring from a previous savepoint with Flink versions newer than 1.8.0. When restoring with Flink versions older than 1.8.0, the schema cannot be changed.
+
+### Avro types
+
+Flink fully supports evolving schema of Avro type state, as long as the schema change is considered compatible by [Avro’s rules for schema resolution](http://avro.apache.org/docs/current/spec.html#Schema+Resolution).
+
+
+
+When registering a managed operator or keyed state, a `StateDescriptor` is required to specify the state’s name, as well as information about the type of the state. The type information is used by Flink’s [type serialization framework](https://ci.apache.org/projects/flink/flink-docs-release-1.12/dev/types_serialization.html) to create appropriate serializers for the state.
+
+It is also possible to completely bypass this and let Flink use your own custom serializer to serialize managed states, simply by directly instantiating the `StateDescriptor` with your own `TypeSerializer` implementation:
+
+- [**Java**](https://ci.apache.org/projects/flink/flink-docs-release-1.12/dev/stream/state/custom_serialization.html#tab_Java_0)
+- [**Scala**](https://ci.apache.org/projects/flink/flink-docs-release-1.12/dev/stream/state/custom_serialization.html#tab_Scala_0)
+
+```
+public class CustomTypeSerializer extends TypeSerializer<Tuple2<String, Integer>> {...};
+
+ListStateDescriptor<Tuple2<String, Integer>> descriptor =
+    new ListStateDescriptor<>(
+        "state-name",
+        new CustomTypeSerializer());
+
+checkpointedState = getRuntimeContext().getListState(descriptor);
+```
+
+# Operators
+
+https://ci.apache.org/projects/flink/flink-docs-release-1.12/dev/stream/operators/
+
+# Windows
+
+
+
+## Keyed vs Non-Keyed Windows
+
+
+
+Having a keyed stream will allow your windowed computation to be performed in parallel by multiple tasks, as each logical keyed stream can be processed independently from the rest. All elements referring to the same key will be sent to the same parallel task.
+
+**In case of non-keyed streams, your original stream will not be split into multiple logical streams and all the windowing logic will be performed by a single task, *i.e.* with parallelism of 1.**
+
+### Tumbling Windows
+
+A *tumbling windows* assigner assigns each element to a window of a specified *window size*.
+
+### Sliding Windows
+
+The *sliding windows* assigner assigns elements to windows of fixed length. Similar to a tumbling windows assigner, the size of the windows is configured by the *window size* parameter. An additional *window slide* parameter controls how frequently a sliding window is started. Hence, sliding windows can be overlapping if the slide is smaller than the window size. In this case elements are assigned to multiple windows.
+
+
+
+### Session Windows
+
+The *session windows* assigner groups elements by sessions of activity. Session windows do not overlap and do not have a fixed start and end time, in contrast to *tumbling windows* and *sliding windows*.
+
+
+
+### Global Windows
+
+A *global windows* assigner assigns all elements with the same key to the same single *global window*. This windowing scheme is only useful if you also specify a custom [trigger](https://ci.apache.org/projects/flink/flink-docs-release-1.12/dev/stream/operators/windows.html#triggers). Otherwise, no computation will be performed, as the global window does not have a natural end at which we could process the aggregated elements.
+
+
+
+### ReduceFunction
+
+A `ReduceFunction` specifies how two elements from the input are combined to produce an output element of the same type. Flink uses a `ReduceFunction` to incrementally aggregate the elements of a window.
+
+A `ReduceFunction` can be defined and used like this:
+
+- [**Java**](https://ci.apache.org/projects/flink/flink-docs-release-1.12/dev/stream/operators/windows.html#tab_Java_4)
+- [**Scala**](https://ci.apache.org/projects/flink/flink-docs-release-1.12/dev/stream/operators/windows.html#tab_Scala_4)
+
+```java
+DataStream<Tuple2<String, Long>> input = ...;
+
+input
+    .keyBy(<key selector>)
+    .window(<window assigner>)
+    .reduce(new ReduceFunction<Tuple2<String, Long>> {
+      public Tuple2<String, Long> reduce(Tuple2<String, Long> v1, Tuple2<String, Long> v2) {
+        return new Tuple2<>(v1.f0, v1.f1 + v2.f1);
+      }
+    });
+```
+
+The above example sums up the second fields of the tuples for all elements in a window.
+
+### AggregateFunction
+
+An `AggregateFunction` is a generalized version of a `ReduceFunction` that has three types: an input type (`IN`), accumulator type (`ACC`), and an output type (`OUT`). The input type is the type of elements in the input stream and the `AggregateFunction` has a method for adding one input element to an accumulator. The interface also has methods for creating an initial accumulator, for merging two accumulators into one accumulator and for extracting an output (of type `OUT`) from an accumulator. We will see how this works in the example below.
+
+Same as with `ReduceFunction`, Flink will incrementally aggregate input elements of a window as they arrive.
+
+```java
+/**
+ * The accumulator is used to keep a running sum and a count. The {@code getResult} method
+ * computes the average.
+ */
+private static class AverageAggregate
+    implements AggregateFunction<Tuple2<String, Long>, Tuple2<Long, Long>, Double> {
+  @Override
+  public Tuple2<Long, Long> createAccumulator() {
+    return new Tuple2<>(0L, 0L);
+  }
+
+  @Override
+  public Tuple2<Long, Long> add(Tuple2<String, Long> value, Tuple2<Long, Long> accumulator) {
+    return new Tuple2<>(accumulator.f0 + value.f1, accumulator.f1 + 1L);
+  }
+
+  @Override
+  public Double getResult(Tuple2<Long, Long> accumulator) {
+    return ((double) accumulator.f0) / accumulator.f1;
+  }
+
+  @Override
+  public Tuple2<Long, Long> merge(Tuple2<Long, Long> a, Tuple2<Long, Long> b) {
+    return new Tuple2<>(a.f0 + b.f0, a.f1 + b.f1);
+  }
+}
+
+DataStream<Tuple2<String, Long>> input = ...;
+
+input
+    .keyBy(<key selector>)
+    .window(<window assigner>)
+    .aggregate(new AverageAggregate());
+```
+
+The above example computes the average of the second field of the elements in the window.
+
+### ProcessWindowFunction
+
+A ProcessWindowFunction gets an Iterable containing all the elements of the window, and a Context object with access to time and state information, which enables it to provide more flexibility than other window functions. This comes at the cost of performance and resource consumption, because elements cannot be incrementally aggregated but instead need to be buffered internally until the window is considered ready for processing.
+
+```java
+public abstract class ProcessWindowFunction<IN, OUT, KEY, W extends Window> implements Function {
+
+    /**
+     * Evaluates the window and outputs none or several elements.
+     *
+     * @param key The key for which this window is evaluated.
+     * @param context The context in which the window is being evaluated.
+     * @param elements The elements in the window being evaluated.
+     * @param out A collector for emitting elements.
+     *
+     * @throws Exception The function may throw exceptions to fail the program and trigger recovery.
+     */
+    public abstract void process(
+            KEY key,
+            Context context,
+            Iterable<IN> elements,
+            Collector<OUT> out) throws Exception;
+
+   	/**
+   	 * The context holding window metadata.
+   	 */
+   	public abstract class Context implements java.io.Serializable {
+   	    /**
+   	     * Returns the window that is being evaluated.
+   	     */
+   	    public abstract W window();
+
+   	    /** Returns the current processing time. */
+   	    public abstract long currentProcessingTime();
+
+   	    /** Returns the current event-time watermark. */
+   	    public abstract long currentWatermark();
+
+   	    /**
+   	     * State accessor for per-key and per-window state.
+   	     *
+   	     * <p><b>NOTE:</b>If you use per-window state you have to ensure that you clean it up
+   	     * by implementing {@link ProcessWindowFunction#clear(Context)}.
+   	     */
+   	    public abstract KeyedStateStore windowState();
+
+   	    /**
+   	     * State accessor for per-key global state.
+   	     */
+   	    public abstract KeyedStateStore globalState();
+   	}
+
+}
+```
+
+
+
+#### Incremental Window Aggregation with ReduceFunction
+
+When the window is closed, the `ProcessWindowFunction` will be provided with the aggregated result(**only one result,not buffer all the event in the window**). This allows it to incrementally compute windows while having access to the additional window meta information of the `ProcessWindowFunction`.
+
+
+
+The following example shows how an incremental `ReduceFunction` can be combined with a `ProcessWindowFunction` to return the smallest event in a window along with the start time of the window.
+
+```java
+DataStream<SensorReading> input = ...;
+
+input
+  .keyBy(<key selector>)
+  .window(<window assigner>)
+  .reduce(new MyReduceFunction(), new MyProcessWindowFunction());
+
+// Function definitions
+
+private static class MyReduceFunction implements ReduceFunction<SensorReading> {
+
+  public SensorReading reduce(SensorReading r1, SensorReading r2) {
+      return r1.value() > r2.value() ? r2 : r1;
+  }
+}
+
+private static class MyProcessWindowFunction
+    extends ProcessWindowFunction<SensorReading, Tuple2<Long, SensorReading>, String, TimeWindow> {
+
+  public void process(String key,
+                    Context context,
+                    Iterable<SensorReading> minReadings,
+                    Collector<Tuple2<Long, SensorReading>> out) {
+      SensorReading min = minReadings.iterator().next();
+      out.collect(new Tuple2<Long, SensorReading>(context.window().getStart(), min));
+  }
+}
+```
+
+#### Incremental Window Aggregation with AggregateFunction
+
+The following example shows how an incremental `AggregateFunction` can be combined with a `ProcessWindowFunction` to compute the average and also emit the key and window along with the average.
+
+```java
+DataStream<Tuple2<String, Long>> input = ...;
+
+input
+  .keyBy(<key selector>)
+  .window(<window assigner>)
+  .aggregate(new AverageAggregate(), new MyProcessWindowFunction());
+
+// Function definitions
+
+/**
+ * The accumulator is used to keep a running sum and a count. The {@code getResult} method
+ * computes the average.
+ */
+private static class AverageAggregate
+    implements AggregateFunction<Tuple2<String, Long>, Tuple2<Long, Long>, Double> {
+  @Override
+  public Tuple2<Long, Long> createAccumulator() {
+    return new Tuple2<>(0L, 0L);
+  }
+
+  @Override
+  public Tuple2<Long, Long> add(Tuple2<String, Long> value, Tuple2<Long, Long> accumulator) {
+    return new Tuple2<>(accumulator.f0 + value.f1, accumulator.f1 + 1L);
+  }
+
+  @Override
+  public Double getResult(Tuple2<Long, Long> accumulator) {
+    return ((double) accumulator.f0) / accumulator.f1;
+  }
+
+  @Override
+  public Tuple2<Long, Long> merge(Tuple2<Long, Long> a, Tuple2<Long, Long> b) {
+    return new Tuple2<>(a.f0 + b.f0, a.f1 + b.f1);
+  }
+}
+
+private static class MyProcessWindowFunction
+    extends ProcessWindowFunction<Double, Tuple2<String, Double>, String, TimeWindow> {
+
+  public void process(String key,
+                    Context context,
+                    Iterable<Double> averages,
+                    Collector<Tuple2<String, Double>> out) {
+      Double average = averages.iterator().next();
+      out.collect(new Tuple2<>(key, average));
+  }
+}
+```
+
+## Useful state size considerations
+
+Windows can be defined over long periods of time (such as days, weeks, or months) and therefore accumulate very large state. There are a couple of rules to keep in mind when estimating the storage requirements of your windowing computation:
+
+1. Flink creates one copy of each element per window to which it belongs. Given this, tumbling windows keep one copy of each element (an element belongs to exactly one window unless it is dropped late). In contrast, sliding windows create several of each element, as explained in the [Window Assigners](https://ci.apache.org/projects/flink/flink-docs-release-1.12/dev/stream/operators/windows.html#window-assigners) section. Hence, a sliding window of size 1 day and slide 1 second might not be a good idea.
+2. `ReduceFunction` and `AggregateFunction` can significantly reduce the storage requirements, as they eagerly aggregate elements and store only one value per window. In contrast, just using a `ProcessWindowFunction` requires accumulating all elements.
+3. Using an `Evictor` prevents any pre-aggregation, as all the elements of a window have to be passed through the evictor before applying the computation (see [Evictors](https://ci.apache.org/projects/flink/flink-docs-release-1.12/dev/stream/operators/windows.html#evictors)).
+
