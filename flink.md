@@ -1364,3 +1364,151 @@ Windows can be defined over long periods of time (such as days, weeks, or months
 2. `ReduceFunction` and `AggregateFunction` can significantly reduce the storage requirements, as they eagerly aggregate elements and store only one value per window. In contrast, just using a `ProcessWindowFunction` requires accumulating all elements.
 3. Using an `Evictor` prevents any pre-aggregation, as all the elements of a window have to be passed through the evictor before applying the computation (see [Evictors](https://ci.apache.org/projects/flink/flink-docs-release-1.12/dev/stream/operators/windows.html#evictors)).
 
+## Allowed Lateness
+
+ By default, the allowed lateness is set to `0`. That is, elements that arrive behind the watermark will be dropped.
+
+You can specify an allowed lateness like this:
+
+
+
+```
+DataStream<T> input = ...;
+
+input
+    .keyBy(<key selector>)
+    .window(<window assigner>)
+    .allowedLateness(<time>)
+    .<windowed transformation>(<window function>);
+```
+
+
+
+### Getting late data as a side output
+
+Using Flink’s [side output](https://ci.apache.org/projects/flink/flink-docs-release-1.12/dev/stream/side_output.html) feature you can get a stream of the data that was discarded as late.
+
+You first need to specify that you want to get late data using `sideOutputLateData(OutputTag)` on the windowed stream. Then, you can get the side-output stream on the result of the windowed operation:
+
+
+
+```
+final OutputTag<T> lateOutputTag = new OutputTag<T>("late-data"){};
+
+DataStream<T> input = ...;
+
+SingleOutputStreamOperator<T> result = input
+    .keyBy(<key selector>)
+    .window(<window assigner>)
+    .allowedLateness(<time>)
+    .sideOutputLateData(lateOutputTag)
+    .<windowed transformation>(<window function>);
+
+DataStream<T> lateStream = result.getSideOutput(lateOutputTag);
+```
+
+# Joining
+
+
+
+https://ci.apache.org/projects/flink/flink-docs-release-1.12/dev/stream/operators/joining.html
+
+
+
+# Asynchronous I/O for External Data Access
+
+
+
+When interacting with external systems (for example when enriching stream events with data stored in a database), one needs to take care that communication delay with the external system does not dominate the streaming application’s total work.
+
+
+
+Asynchronous interaction with the database means that a single parallel function instance can handle many requests concurrently and receive the responses concurrently. That way, the waiting time can be overlayed with sending other requests and receiving responses. At the very least, the waiting time is amortized over multiple requests. This leads in most cased to much higher streaming throughput.
+
+![](./imgs/async_io.svg)
+
+
+
+Assuming one has an asynchronous client for the target database, three parts are needed to implement a stream transformation with asynchronous I/O against the database:
+
+- An implementation of `AsyncFunction` that dispatches the requests
+- A *callback* that takes the result of the operation and hands it to the `ResultFuture`
+- Applying the async I/O operation on a DataStream as a transformation
+
+The following code example illustrates the basic pattern:
+
+```java
+// This example implements the asynchronous request and callback with Futures that have the
+// interface of Java 8's futures (which is the same one followed by Flink's Future)
+
+/**
+ * An implementation of the 'AsyncFunction' that sends requests and sets the callback.
+ */
+class AsyncDatabaseRequest extends RichAsyncFunction<String, Tuple2<String, String>> {
+
+    /** The database specific client that can issue concurrent requests with callbacks */
+    private transient DatabaseClient client;
+
+    @Override
+    public void open(Configuration parameters) throws Exception {
+        client = new DatabaseClient(host, post, credentials);
+    }
+
+    @Override
+    public void close() throws Exception {
+        client.close();
+    }
+
+    @Override
+    public void asyncInvoke(String key, final ResultFuture<Tuple2<String, String>> resultFuture) throws Exception {
+
+        // issue the asynchronous request, receive a future for result
+        final Future<String> result = client.query(key);
+
+        // set the callback to be executed once the request by the client is complete
+        // the callback simply forwards the result to the result future
+        CompletableFuture.supplyAsync(new Supplier<String>() {
+
+            @Override
+            public String get() {
+                try {
+                    return result.get();
+                } catch (InterruptedException | ExecutionException e) {
+                    // Normally handled explicitly.
+                    return null;
+                }
+            }
+        }).thenAccept( (String dbResult) -> {
+            resultFuture.complete(Collections.singleton(new Tuple2<>(key, dbResult)));
+        });
+    }
+}
+
+// create the original stream
+DataStream<String> stream = ...;
+
+// apply the async I/O transformation
+DataStream<Tuple2<String, String>> resultStream =
+    AsyncDataStream.unorderedWait(stream, new AsyncDatabaseRequest(), 1000, TimeUnit.MILLISECONDS, 100);
+```
+
+**Important note**: The `ResultFuture` is completed with the first call of `ResultFuture.complete`. All subsequent `complete` calls will be ignored.
+
+The following two parameters control the asynchronous operations:
+
+- **Timeout**: The timeout defines how long an asynchronous request may take before it is considered failed. This parameter guards against dead/failed requests.
+- **Capacity**: This parameter defines how many asynchronous requests may be in progress at the same time. Even though the async I/O approach leads typically to much better throughput, the operator can still be the bottleneck in the streaming application. Limiting the number of concurrent requests ensures that the operator will not accumulate an ever-growing backlog of pending requests, but that it will trigger backpressure once the capacity is exhausted.
+
+
+
+
+
+
+
+
+
+
+
+# An Overview of End-to-End Exactly-Once Processing in Apache Flink (with Apache Kafka, too!)
+
+https://flink.apache.org/features/2018/03/01/end-to-end-exactly-once-apache-flink.html
