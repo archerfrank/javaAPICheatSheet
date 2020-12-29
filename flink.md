@@ -1499,13 +1499,226 @@ The following two parameters control the asynchronous operations:
 - **Timeout**: The timeout defines how long an asynchronous request may take before it is considered failed. This parameter guards against dead/failed requests.
 - **Capacity**: This parameter defines how many asynchronous requests may be in progress at the same time. Even though the async I/O approach leads typically to much better throughput, the operator can still be the bottleneck in the streaming application. Limiting the number of concurrent requests ensures that the operator will not accumulate an ever-growing backlog of pending requests, but that it will trigger backpressure once the capacity is exhausted.
 
+## Data Source Concepts
+
+A Data Source has three core components: *Splits*, the *SplitEnumerator*, and the *SourceReader*.
+
+- A **Split** is a portion of data consumed by the source, like a file or a log partition. Splits are granularity by which the source distributes the work and parallelizes the data reading.
+- The **SourceReader** requests *Splits* and processes them, for example by reading the file or log partition represented by the *Split*. The *SourceReader* run in parallel on the Task Managers in the `SourceOperators` and produces the parallel stream of events/records.
+- The **SplitEnumerator** generates the *Splits* and assigns them to the *SourceReaders*. It runs as a single instance on the Job Manager and is responsible for maintaining the backlog of pending *Splits* and assigning them to the readers in a balanced manner.
 
 
 
+![](./imgs/source_components.svg)
+
+**Bounded File Source**
+
+The source has the URI/Path of a directory to read, and a *Format* that defines how to parse the files.
+
+- A *Split* is a file, or a region of a file (if the data format supports splitting the file).
+- The *SplitEnumerator* lists all files under the given directory path. It assigns Splits to the next reader that requests a Split. Once all Splits are assigned, it responds to requests with *NoMoreSplits*.
+- The *SourceReader* requests a Split and reads the assigned Split (file or file region) and parses it using the given Format. If it does not get another Split, but a *NoMoreSplits* message, it finishes.
+
+**Unbounded Streaming File Source**
+
+This source works the same way as described above, except that the *SplitEnumerator* never responds with *NoMoreSplits* and periodically lists the contents under the given URI/Path to check for new files. Once it finds new files, it generates new Splits for them and can assign them to the available SourceReaders.
+
+**Unbounded Streaming Kafka Source**
+
+The source has a Kafka Topic (or list of Topics or Topic regex) and a *Deserializer* to parse the records.
+
+- A *Split* is a Kafka Topic Partition.
+- The *SplitEnumerator* connects to the brokers to list all topic partitions involved in the subscribed topics. The enumerator can optionally repeat this operation to discover newly added topics/partitions.
+- The *SourceReader* reads the assigned Splits (Topic Partitions) using the KafkaConsumer and deserializes the records using the provided Deserializer. The splits (Topic Partitions) do not have an end, so the reader never reaches the end of the data.
+
+**Bounded Kafka Source**
+
+Same as above, except that each Split (Topic Partition) has a defined end offset. Once the *SourceReader* reaches the end offset for a Split, it finishes that Split. Once all assigned Splits are finished, the SourceReader finishes.
 
 
 
+# Handling Application Parameters
 
+
+
+#### From `.properties` files
+
+The following method will read a [Properties](https://docs.oracle.com/javase/tutorial/essential/environment/properties.html) file and provide the key/value pairs:
+
+```java
+String propertiesFilePath = "/home/sam/flink/myjob.properties";
+ParameterTool parameter = ParameterTool.fromPropertiesFile(propertiesFilePath);
+
+File propertiesFile = new File(propertiesFilePath);
+ParameterTool parameter = ParameterTool.fromPropertiesFile(propertiesFile);
+
+InputStream propertiesFileInputStream = new FileInputStream(file);
+ParameterTool parameter = ParameterTool.fromPropertiesFile(propertiesFileInputStream);
+```
+
+#### From the command line arguments
+
+This allows getting arguments like `--input hdfs:///mydata --elements 42` from the command line.
+
+```java
+public static void main(String[] args) {
+    ParameterTool parameter = ParameterTool.fromArgs(args);
+    // .. regular code ..
+```
+
+#### From system properties
+
+When starting a JVM, you can pass system properties to it: `-Dinput=hdfs:///mydata`. You can also initialize the `ParameterTool` from these system properties:
+
+```java
+ParameterTool parameter = ParameterTool.fromSystemProperties();
+```
+
+
+
+Since the `ParameterTool` is serializable, you can pass it to the functions itself:
+
+```java
+ParameterTool parameters = ParameterTool.fromArgs(args);
+DataSet<Tuple2<String, Integer>> counts = text.flatMap(new Tokenizer(parameters));
+```
+
+
+
+#### Register the parameters globally
+
+Parameters registered as global job parameters in the `ExecutionConfig` can be accessed as configuration values from the JobManager web interface and in all functions defined by the user.
+
+Register the parameters globally:
+
+```
+ParameterTool parameters = ParameterTool.fromArgs(args);
+
+// set up the execution environment
+final ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
+env.getConfig().setGlobalJobParameters(parameters);
+```
+
+Access them in any rich user function:
+
+```
+public static final class Tokenizer extends RichFlatMapFunction<String, Tuple2<String, Integer>> {
+
+    @Override
+    public void flatMap(String value, Collector<Tuple2<String, Integer>> out) {
+	ParameterTool parameters = (ParameterTool)
+	    getRuntimeContext().getExecutionConfig().getGlobalJobParameters();
+	parameters.getRequired("input");
+	// .. do more ..
+```
+
+
+
+# Experimental Features
+
+## Reinterpreting a pre-partitioned data stream as keyed stream
+
+We can re-interpret a pre-partitioned data stream as a keyed stream to avoid shuffling.
+
+**WARNING**: The re-interpreted data stream **MUST** already be pre-partitioned in **EXACTLY** the same way Flink’s keyBy would partition the data in a shuffle w.r.t. key-group assignment.
+
+Given a base stream, a key selector, and type information, the method creates a keyed stream from the base stream.
+
+```java
+StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+DataStreamSource<Integer> source = ...
+DataStreamUtils.reinterpretAsKeyedStream(source, (in) -> in, TypeInformation.of(Integer.class))
+    .window(TumblingEventTimeWindows.of(Time.seconds(1)))
+    .reduce((a, b) -> a + b)
+    .addSink(new DiscardingSink<>());
+env.execute();
+```
+
+
+
+# Java Lambda Expressions
+
+Flink supports the usage of lambda expressions for all operators of the Java API, however, whenever a lambda expression uses Java generics you need to declare type information *explicitly*.
+
+Similar problems occur when using a `map()` function with a generic return type. A method signature `Tuple2<Integer, Integer> map(Integer value)` is erasured to `Tuple2 map(Integer value)` in the example below.
+
+```java
+import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.java.tuple.Tuple2;
+
+env.fromElements(1, 2, 3)
+    .map(i -> Tuple2.of(i, i))    // no information about fields of Tuple2
+    .print();
+```
+
+In general, those problems can be solved in multiple ways:
+
+```java
+import org.apache.flink.api.common.typeinfo.Types;
+import org.apache.flink.api.java.tuple.Tuple2;
+
+// use the explicit ".returns(...)"
+env.fromElements(1, 2, 3)
+    .map(i -> Tuple2.of(i, i))
+    .returns(Types.TUPLE(Types.INT, Types.INT))
+    .print();
+
+// use a class instead
+env.fromElements(1, 2, 3)
+    .map(new MyTuple2Mapper())
+    .print();
+
+public static class MyTuple2Mapper extends MapFunction<Integer, Tuple2<Integer, Integer>> {
+    @Override
+    public Tuple2<Integer, Integer> map(Integer i) {
+        return Tuple2.of(i, i);
+    }
+}
+
+// use an anonymous class instead
+env.fromElements(1, 2, 3)
+    .map(new MapFunction<Integer, Tuple2<Integer, Integer>> {
+        @Override
+        public Tuple2<Integer, Integer> map(Integer i) {
+            return Tuple2.of(i, i);
+        }
+    })
+    .print();
+
+// or in this example use a tuple subclass instead
+env.fromElements(1, 2, 3)
+    .map(i -> new DoubleTuple(i, i))
+    .print();
+
+public static class DoubleTuple extends Tuple2<Integer, Integer> {
+    public DoubleTuple(int f0, int f1) {
+        this.f0 = f0;
+        this.f1 = f1;
+    }
+}
+```
+
+
+
+# Project Configuration
+
+**Important:** Please note that all these dependencies have their scope set to *provided*. That means that they are needed to compile against, but that they should not be packaged into the project’s resulting application jar file - these dependencies are Flink Core Dependencies, which are already available in any setup.
+
+It is highly recommended keeping the dependencies in scope *provided*. If they are not set to *provided*, the best case is that the resulting JAR becomes excessively large, because it also contains all Flink core dependencies. The worst case is that the Flink core dependencies that are added to the application’s jar file clash with some of your own dependency versions (which is normally avoided through inverted classloading).
+
+
+
+## Hadoop Dependencies
+
+**General rule: It should never be necessary to add Hadoop dependencies directly to your application.** *(The only exception being when using existing Hadoop input-/output formats with Flink’s Hadoop compatibility wrappers)*
+
+If you want to use Flink with Hadoop, you need to have a Flink setup that includes the Hadoop dependencies, rather than adding Hadoop as an application dependency. Flink will use the Hadoop dependencies specified by the `HADOOP_CLASSPATH` environment variable, which can be set in the following way:
+
+```
+export HADOOP_CLASSPATH=`hadoop classpath`
+```
+
+If you need Hadoop dependencies during testing or development inside the IDE (for example for HDFS access), please configure these dependencies similar to the scope of the dependencies to *test* or to *provided*.
 
 
 
