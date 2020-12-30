@@ -1722,6 +1722,130 @@ If you need Hadoop dependencies during testing or development inside the IDE (fo
 
 
 
+# SQL Client
+
+The *SQL Client* aims to provide an easy way of writing, debugging, and submitting table programs to a Flink cluster without a single line of Java or Scala code. The *SQL Client CLI* allows for retrieving and visualizing real-time results from the running distributed application on the command line.
+
+
+
+# Command-Line Interface
+
+### Submitting a Job
+
+Submitting a job means uploading the job’s JAR and related dependencies to the Flink cluster and initiating the job execution. For the sake of this example, we select a long-running job like `examples/streaming/StateMachineExample.jar`. Feel free to select any other JAR archive from the `examples/` folder or deploy your own job.
+
+```
+$ ./bin/flink run \
+      --detached \
+      ./examples/streaming/StateMachineExample.jar
+```
+
+Submitting the job using `--detached` will make the command return after the submission is done. The output contains (besides other things) the ID of the newly submitted job.
+
+### Accessing Flink in Kubernetes
+
+You can then access the Flink UI and submit jobs via different ways:
+
+- `kubectl proxy`:
+  1. Run `kubectl proxy` in a terminal.
+  2. Navigate to http://localhost:8001/api/v1/namespaces/default/services/flink-jobmanager:webui/proxy in your browser.
+- `kubectl port-forward`:
+  1. Run `kubectl port-forward ${flink-jobmanager-pod} 8081:8081` to forward your jobmanager’s web ui port to local 8081.
+  2. Navigate to [http://localhost:8081](http://localhost:8081/) in your browser.
+  3. Moreover, you can use the following command below to submit jobs to the cluster:
+
+```
+    $ ./bin/flink run -m localhost:8081 
+    $ ./examples/streaming/TopSpeedWindowing.jar
+    
+```
+
+- Create a nodeport service on the rest service of jobmanager:
+  1. Run `kubectl create -f jobmanager-rest-service.yaml` to create the `NodePort` service on jobmanager. The example of `jobmanager-rest-service.yaml` can be found in [appendix](https://ci.apache.org/projects/flink/flink-docs-release-1.12/deployment/resource-providers/standalone/kubernetes.html#common-cluster-resource-definitions).
+  2. Run `kubectl get svc flink-jobmanager-rest` to know the `node-port` of this service and navigate to [http://:](http://:/) in your browser.
+  3. If you use minikube, you can get its public ip by running `minikube ip`.
+  4. Similarly to the `port-forward` solution, you can also use the following command below to submit jobs to the cluster:
+
+```
+    $ ./bin/flink run -m <public-node-ip>:<node-port> 
+    $ ./examples/streaming/TopSpeedWindowing.jar
+    
+```
+
+
+
+### Job Monitoring
+
+You can monitor any running jobs using the `list` action:
+
+```shell
+$ ./bin/flink list
+Waiting for response...
+------------------ Running/Restarting Jobs -------------------
+30.11.2020 16:02:29 : cca7bc1061d61cf15238e92312c2fc20 : State machine job (RUNNING)
+--------------------------------------------------------------
+No scheduled jobs.
+```
+
+
+
+### Creating a Savepoint
+
+[Savepoints](https://ci.apache.org/projects/flink/flink-docs-release-1.12/ops/state/savepoints.html) can be created to save the current state a job is in. All that’s needed is the JobID:
+
+```shell
+$ ./bin/flink savepoint \
+      $JOB_ID \ 
+      /tmp/flink-savepoints
+Triggering savepoint for job cca7bc1061d61cf15238e92312c2fc20.
+Waiting for response...
+Savepoint completed. Path: file:/tmp/flink-savepoints/savepoint-cca7bc-bb1e257f0dab
+You can resume your program from this savepoint with the run command.
+```
+
+
+
+### Terminating a Job
+
+#### Stopping a Job Gracefully Creating a Final Savepoint
+
+Another action for stopping a job is `stop`. It is a more graceful way of stopping a running streaming job as the `stop` flows from source to sink. When the user requests to stop a job, all sources will be requested to send the last checkpoint barrier that will trigger a savepoint, and after the successful completion of that savepoint, they will finish by calling their `cancel()` method.
+
+```shell
+$ ./bin/flink stop \
+      --savepointPath /tmp-flink-savepoints \
+      $JOB_ID
+Suspending job "cca7bc1061d61cf15238e92312c2fc20" with a savepoint.
+Savepoint completed. Path: file:/tmp/flink-savepoints/savepoint-cca7bc-bb1e257f0dab
+```
+
+
+
+#### Cancelling a Job Ungracefully
+
+Cancelling a job can be achieved through the `cancel` action:
+
+```shell
+$ ./bin/flink cancel $JOB_ID
+Cancelling job cca7bc1061d61cf15238e92312c2fc20.
+Cancelled job cca7bc1061d61cf15238e92312c2fc20.
+```
+
+### Starting a Job from a Savepoint
+
+Starting a job from a savepoint can be achieved using the `run` (and `run-application`) action.
+
+```shell
+$ ./bin/flink run \
+      --detached \ 
+      --fromSavepoint /tmp/flink-savepoints/savepoint-cca7bc-bb1e257f0dab \
+      ./examples/streaming/StateMachineExample.jar
+```
+
+
+
+
+
 # An Overview of End-to-End Exactly-Once Processing in Apache Flink (with Apache Kafka, too!)
 
 https://flink.apache.org/features/2018/03/01/end-to-end-exactly-once-apache-flink.html
