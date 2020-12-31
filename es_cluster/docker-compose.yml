@@ -1,0 +1,68 @@
+version: "3"
+services:
+  es-master:
+    image: elasticsearch:7.10.1
+    container_name: es-master
+    environment:
+      - "ES_JAVA_OPTS=-Xms256m -Xmx256m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - C:/Users/Administrator/es/master/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+      - C:/Users/Administrator/es/master/data:/usr/share/elasticsearch/data
+      - C:/Users/Administrator/es/master/log:/usr/share/elasticsearch/log
+    networks:
+      - net-es
+  es-node1:
+    image: elasticsearch:7.10.1
+    container_name: es-node1
+    environment:
+      - "ES_JAVA_OPTS=-Xms256m -Xmx256m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "9201:9200"
+      - "9301:9300"
+    volumes:
+      - C:/Users/Administrator/es/node1/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+      - C:/Users/Administrator/es/node1/data:/usr/share/elasticsearch/data
+      - C:/Users/Administrator/es/node1/log:/usr/share/elasticsearch/log
+    networks:
+      - net-es
+  es-node2:
+    image: elasticsearch:7.10.1
+    container_name: es-node2
+    environment:
+      - "ES_JAVA_OPTS=-Xms256m -Xmx256m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "9202:9200"
+      - "9302:9300"
+    volumes:
+      - C:/Users/Administrator/es/node2/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+      - C:/Users/Administrator/es/node2/data:/usr/share/elasticsearch/data
+      - C:/Users/Administrator/es/node2/log:/usr/share/elasticsearch/log
+    networks:
+      - net-es
+networks:
+  net-es:
+    driver: bridge

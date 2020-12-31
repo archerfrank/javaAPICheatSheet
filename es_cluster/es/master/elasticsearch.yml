@@ -1,0 +1,18 @@
+cluster.name: es-cluster
+node.name: es-master
+node.master: true
+node.data: true
+ 
+network.host: es-master
+http.port: 9200
+transport.tcp.port: 9300
+http.cors.enabled: true
+http.cors.allow-origin: "*"
+ 
+discovery.zen.ping.unicast.hosts: ["es-master:9300", "es-node1:9300", "es-node2:9300"]
+discovery.zen.minimum_master_nodes: 2
+discovery.zen.ping_timeout: 5s
+ 
+bootstrap.memory_lock: true
+action.destructive_requires_name: true
+cluster.initial_master_nodes: ["es-master"]
