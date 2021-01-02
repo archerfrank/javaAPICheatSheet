@@ -37,3 +37,21 @@ The index aliases API allows you to create another name for an index or multiple
 # Analyzer
 
 ![](./imgs/c4999022-9032-4680-96f6-cf1b1af27815.png)
+
+
+
+# Search API
+
+
+
+# The scroll parameter
+
+In addition to paging using the parameters, from and size, Elasticsearch also supports the scrollparameter, and works like a forward-only cursor. It keeps the search context active, just like a snapshot corresponding to a given timestamp.
+
+Basically, if you need to process the returned results further and continue after the process, you need to keep such a snapshot. An identifier, _scroll_id, is provided in the result of the initial request so that you can use the identifier to get the next batch of results. If there are no more results, an empty array is returned in hits.You can use thesizeparameterto control the number of hits returned in the batch.
+
+Let's look at an example where scrolling is executed three times to consume all documents. We will set the size to 313 and specify 10 minutes for the live time period.
+
+
+
+If you complete the process, you need to clean up the context since it still consumes the computing resource before the timeout. As shown in the following screenshot, you can use the scroll_id parameter to specify one or more contexts in the DELETE API:
