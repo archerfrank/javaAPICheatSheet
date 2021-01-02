@@ -1726,7 +1726,7 @@ If you need Hadoop dependencies during testing or development inside the IDE (fo
 
 The *SQL Client* aims to provide an easy way of writing, debugging, and submitting table programs to a Flink cluster without a single line of Java or Scala code. The *SQL Client CLI* allows for retrieving and visualizing real-time results from the running distributed application on the command line.
 
-
+![](./imgs/sql_client_demo.gif)
 
 # Command-Line Interface
 
