@@ -3,7 +3,17 @@
 
 
 ## Union Find
-
+```python
+def find(x):
+    if p[x] != x:
+        p[x] = find(p[x])
+    return p[x]
+def union(x, y):
+    p[find(x)] = find(y)
+    
+def defaultdict_int():
+    return defaultdict(int)
+```
 
 ```java
 private class UnionFind {
