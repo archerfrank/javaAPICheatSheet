@@ -4,6 +4,7 @@
 
 ## Union Find
 ```python
+p = [i for i in range(n)]
 def find(x):
     if p[x] != x:
         p[x] = find(p[x])
@@ -16,6 +17,7 @@ def defaultdict_int():
 ```
 
 ```java
+// 带权重union find
 private class UnionFind {
 
     private int[] parent;
@@ -70,6 +72,58 @@ private class UnionFind {
         }
     }
 }
+
+
+//按rank union
+private class UnionFind {
+
+        private int[] parent;
+        /**
+         * 以 i 为根结点的子树的高度（引入了路径压缩以后该定义并不准确）
+         */
+        private int[] rank;
+
+        public UnionFind(int n) {
+            this.parent = new int[n];
+            this.rank = new int[n];
+            for (int i = 0; i < n; i++) {
+                this.parent[i] = i;
+                this.rank[i] = 1;
+            }
+        }
+
+        public void union(int x, int y) {
+            int rootX = find(x);
+            int rootY = find(y);
+            if (rootX == rootY) {
+                return;
+            }
+
+            if (rank[rootX] == rank[rootY]) {
+                parent[rootX] = rootY;
+                // 此时以 rootY 为根结点的树的高度仅加了 1
+                rank[rootY]++;
+            } else if (rank[rootX] < rank[rootY]) {
+                parent[rootX] = rootY;
+                // 此时以 rootY 为根结点的树的高度不变
+            } else {
+                // 同理，此时以 rootX 为根结点的树的高度不变
+                parent[rootY] = rootX;
+            }
+        }
+
+        public int find(int x) {
+            if (x != parent[x]) {
+                parent[x] = find(parent[x]);
+            }
+            return parent[x];
+        }
+    }
+
+作者：LeetCode
+链接：https://leetcode-cn.com/problems/smallest-string-with-swaps/solution/1202-jiao-huan-zi-fu-chuan-zhong-de-yuan-wgab/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
 ```
 
 ## Segment Tree
