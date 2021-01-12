@@ -63,6 +63,19 @@ services:
       - C:/Users/Administrator/es/node2/log:/usr/share/elasticsearch/log
     networks:
       - net-es
+  kibana:
+    image: kibana:7.10.1
+    container_name: kibana
+    environment:
+      - NODE_OPTIONS=--max-old-space-size=1024
+    ports:
+      - "5601:5601"
+    volumes:
+      - C:/Users/Administrator/es/kibana/kibana.yml:/usr/share/kibana/config/kibana.yml
+    depends_on:
+      - es-master
+    networks:
+      - net-es
 networks:
   net-es:
     driver: bridge
