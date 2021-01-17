@@ -9,10 +9,6 @@ docker run --name elasticsearch -p 9200:9200 -p 9300:9300  -e "discovery.type=si
 http://localhost:9200/
 ```
 
-
-
-
-
 Please use docker compose version.
 
 
@@ -56,3 +52,37 @@ Let's look at an example where scrolling is executed three times to consume all 
 
 
 If you complete the process, you need to clean up the context since it still consumes the computing resource before the timeout. As shown in the following screenshot, you can use the scroll_id parameter to specify one or more contexts in the DELETE API:
+
+## SQL
+
+```
+docker exec -it es-master /bin/bash
+bin/elasticsearch-sql-cli http://172.19.0.2:9200
+
+show tables;
+describe cf_etf;
+describe cf_etf_hist_price;
+describe cf_etf_split;
+
+select database();
+
+
+select symbol from cf_etf where symbol like 'AC%';
+
+select * from cf_etf_hist_price where date='2019-01-31' limit 1;
+select * from cf_etf_hist_price where date=CAST('2019-01-31' AS DATETIME) + INTERVAL 1 day limit 1;
+select histogram(open, 0.5) AS open_price, count(*) AS count from cf_etf_hist_price where symbol='RFEM' group by open_price;
+```
+
+
+## Analyzer
+
+```
+bin/elasticsearch-plugin install analysis-icu
+bin/elasticsearch-plugin install analysis-smartcn
+bin/elasticsearch-plugin install https://github.com/medcl/elasticsearch-analysis-ik/releases/download/v7.10.1/elasticsearch-analysis-ik-7.10.1.zip
+
+
+activate.bat
+pip install -r requirements.txt
+```
