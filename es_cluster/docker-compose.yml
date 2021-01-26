@@ -76,6 +76,17 @@ services:
       - es-master
     networks:
       - net-es
+  cerebro:
+    image: lmenezes/cerebro:0.9.3
+    container_name: cerebro
+    ports:
+      - "9000:9000"
+    command:
+      - -Dhosts.0.host=http://es-master:9200
+    depends_on:
+      - es-master
+    networks:
+      - net-es
 networks:
   net-es:
     driver: bridge
