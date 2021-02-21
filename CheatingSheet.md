@@ -31,7 +31,7 @@ class UnionFind:
         self.parent[x] = self.findset(self.parent[x])
         return self.parent[x]
     
-    def unite(self, x: int, y: int) -> bool:
+    def union(self, x: int, y: int) -> bool:
         x, y = self.findset(x), self.findset(y)
         if x == y:
             return False
@@ -150,11 +150,6 @@ private class UnionFind {
             return parent[x];
         }
     }
-
-作者：LeetCode
-链接：https://leetcode-cn.com/problems/smallest-string-with-swaps/solution/1202-jiao-huan-zi-fu-chuan-zhong-de-yuan-wgab/
-来源：力扣（LeetCode）
-著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
 ```
 
 ## Segment Tree
@@ -261,4 +256,18 @@ class BIT {
     }
 }
 
+```
+
+## LRU Cache
+```python
+        n, m = len(nums), len(multipliers)
+        @lru_cache(None)
+        def helper(i, j, idx):
+            if idx == m:
+                return 0
+            r1 = multipliers[idx] * nums[i] + helper(i+1, j, idx+1)
+            r2 = multipliers[idx] * nums[j] + helper(i, j-1, idx + 1)
+            return max(r1, r2)
+        res = helper(0, n-1, 0)
+        helper.cache_clear()
 ```
