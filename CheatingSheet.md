@@ -258,6 +258,32 @@ class BIT {
 
 ```
 
+```python
+class BIT:
+    def __init__(self, nums: List[int]):
+        self.sum = [0] * (len(nums) + 1)
+        self.n = len(nums)
+        for i in range(len(nums)):
+            self.update(i + 1, 0, nums[i])
+
+    def sumRange(self, i: int, j: int) -> int:
+        return self.query(j + 1) - self.query(i)
+
+    def lowbit(self, i: int) -> int:
+        return i & (-i)
+    def update(self, pos:int, oldValue: int, newValue:int):
+        while pos <= self.n:
+            self.sum[pos] += newValue - oldValue
+            pos += self.lowbit(pos)
+
+    def query(self, pos:int) -> int:
+        ans = 0
+        while pos > 0:
+            ans += self.sum[pos]
+            pos -= self.lowbit(pos)
+        return ans
+```
+
 ## LRU Cache
 ```python
         n, m = len(nums), len(multipliers)
