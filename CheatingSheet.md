@@ -297,3 +297,22 @@ class BIT:
         res = helper(0, n-1, 0)
         helper.cache_clear()
 ```
+
+## 最短路径 shortest path
+
+```python
+		adj = defaultdict(list)
+        for x, y,w in edges:
+            adj[x].append((y, w))
+            adj[y].append((x, w))
+        q = [(0, n)]
+        cost = [inf] * (n+1)
+        cost[n] = 0
+        while q:
+            v = heapq.heappop(q)
+            for child in adj[v[1]]:
+                if v[0] + child[1] < cost[child[0]]:
+                    cost[child[0]] = v[0] + child[1]
+                    heapq.heappush(q, (cost[child[0]], child[0]))
+```
+
