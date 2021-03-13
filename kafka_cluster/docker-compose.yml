@@ -1,0 +1,106 @@
+version: "3"
+services:
+  kafka1:
+    image: wurstmeister/kafka:2.12-2.1.0
+    restart: always
+    # mem_limit: 350m
+    networks:
+      - my-network
+    ports:
+      - "9093:9093"
+      - "8080:8080"
+    volumes:
+      - C:/Users/Administrator/kafka/jmx_prometheus_javaagent-0.3.1.jar:/opt/kafka/jmx_prometheus_javaagent-0.3.1.jar
+      - C:/Users/Administrator/kafka/kafka-0-8-2.yml:/opt/kafka/kafka-0-8-2.yml
+    environment:
+      - KAFKA_ADVERTISED_LISTENERS=INSIDE://kafka1:9091,OUTSIDE://127.0.0.1:9093
+      - KAFKA_LISTENERS=INSIDE://kafka1:9091,,OUTSIDE://kafka1:9093
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP= INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT
+      - KAFKA_INTER_BROKER_LISTENER_NAME= INSIDE
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_OPTS=-javaagent:/opt/kafka/jmx_prometheus_javaagent-0.3.1.jar=8080:/opt/kafka/kafka-0-8-2.yml
+    depends_on:
+      - zookeeper
+
+  kafka2:
+    image: wurstmeister/kafka:2.12-2.1.0
+    restart: always
+    # mem_limit: 350m
+    networks:
+      - my-network
+    ports:
+      - "9094:9094"
+      - "8081:8081"
+    volumes:
+      - C:/Users/Administrator/kafka/jmx_prometheus_javaagent-0.3.1.jar:/opt/kafka/jmx_prometheus_javaagent-0.3.1.jar
+      - C:/Users/Administrator/kafka/kafka-0-8-2.yml:/opt/kafka/kafka-0-8-2.yml
+    environment:
+      - KAFKA_ADVERTISED_LISTENERS=INSIDE://kafka2:9092,OUTSIDE://127.0.0.1:9094
+      - KAFKA_LISTENERS=INSIDE://kafka2:9092,,OUTSIDE://kafka2:9094
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP= INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT
+      - KAFKA_INTER_BROKER_LISTENER_NAME= INSIDE
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_OPTS=-javaagent:/opt/kafka/jmx_prometheus_javaagent-0.3.1.jar=8081:/opt/kafka/kafka-0-8-2.yml
+    depends_on:
+      - zookeeper
+
+  zookeeper:
+    image: wurstmeister/zookeeper:3.4.6
+    restart: always
+    # mem_limit: 350m
+    networks:
+      - my-network
+    ports:
+      - "2181:2181"
+      - "8082:8082"
+    volumes:
+      - C:/Users/Administrator/kafka/jmx_prometheus_javaagent-0.3.1.jar:/opt/zookeeper/jmx_prometheus_javaagent-0.3.1.jar
+      - C:/Users/Administrator/kafka/zookeeper.yaml:/opt/zookeeper/zookeeper.yml
+    environment:
+      - KAFKA_ADVERTISED_HOST_NAME=zookeeper
+      - EXTRA_ARGS=-javaagent:/opt/zookeeper/jmx_prometheus_javaagent-0.3.1.jar=8082:/opt/zookeeper/zookeeper.yml
+
+  prometheus:
+    image: prom/prometheus:v2.25.0
+    container_name: prometheus
+    restart: always
+    ports:
+      - "9090:9090"
+    networks:
+      - my-network
+    volumes:
+      - C:/Users/Administrator/kafka/prometheus.yml:/etc/prometheus/prometheus.yml
+      - C:/Users/Administrator/kafka/prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    depends_on:
+      - kafka2
+
+  kafkamanager:
+    image: sheepkiller/kafka-manager:1.3.1.8
+    container_name: kafkamanager
+    restart: always
+    ports:
+      - "9000:9000"
+    networks:
+      - my-network
+    environment:
+      - ZK_HOSTS=zookeeper:2181
+    depends_on:
+      - zookeeper
+
+  grafana:
+    image: grafana/grafana:7.4.3-ubuntu
+    container_name: grafana
+    restart: always
+    ports:
+      - "3000:3000"
+    networks:
+      - my-network
+    depends_on:
+      - prometheus
+
+networks:
+  my-network:
+    driver: bridge
