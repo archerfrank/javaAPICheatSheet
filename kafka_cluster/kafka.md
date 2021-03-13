@@ -19,6 +19,7 @@ kafka-topics.bat --create --topic topic --partitions 4 --zookeeper 127.0.0.1:218
 kafka-topics.bat --describe --topic topic --zookeeper 127.0.0.1:2181
 kafka-console-producer.bat --topic=topic --broker-list=127.0.0.1:9093
 kafka-console-consumer.bat --topic=topic --bootstrap-server=127.0.0.1:9093
+kafka-topics.bat --describe --zookeeper 127.0.0.1:2181
 ```
 
 
@@ -27,7 +28,27 @@ http://localhost:3000/
 Username : admin
 PWD : admin
 
+add datasource below.
+http://prometheus:9090
+
 Import dashbroad.json
+
+
+## Verify kafka broker
+
+```
+cd E:\kafka\bin\windows
+kafka-verifiable-producer.bat –broker-list 127.0.0.1:9093,127.0.0.1:9094 –topic topic –max-messages 64
+kafka-verifiable-consumer.bat –broker-list 127.0.0.1:9093,127.0.0.1:9094 –topic topic –group-id testGroup
+
+kafka-run-class.bat org.apache.kafka.tools.VerifiableProducer --broker-list 127.0.0.1:9093,127.0.0.1:9094 --topic topic --max-messages 64
+
+kafka-run-class.bat org.apache.kafka.tools.VerifiableConsumer --broker-list 127.0.0.1:9093,127.0.0.1:9094 --topic topic --group-id testGroup
+
+
+docker-compose stop kafka1
+docker-compose start kafka1
+```
 
 
 
