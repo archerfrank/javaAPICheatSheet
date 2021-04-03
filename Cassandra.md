@@ -61,13 +61,13 @@ For read operations, the coordinator generally only issues read commands to enou
 
 
 
-## Memtables
+### Memtables
 
 Memtables are in-memory structures where Cassandra buffers writes. In general, there is one active memtable per table.
 
 
 
-## SSTables
+### SSTables
 
 ```
 Data.db
@@ -96,6 +96,12 @@ A Bloom Filter of the partition keys in the SSTable.
 
 
 Within the `Data.db` file, rows are organized by partition. **These partitions are sorted in token order (i.e. by a hash of the partition key when the default partitioner, `Murmur3Partition`, is used).** Within a partition, rows are stored in the order of their clustering keys.
+
+
+
+### Ring Membership and Failure Detection
+
+Cassandra will never remove a node from gossip state without explicit instruction from an operator via a decommission operation or a new node bootstrapping with a `replace_address_first_boot` option. This choice is intentional to allow Cassandra nodes to temporarily fail without causing data to needlessly re-balance. This also helps to prevent simultaneous range movements, where multiple replicas of a token range are moving at the same time, which can violate monotonic consistency and can even cause data loss.
 
 
 
