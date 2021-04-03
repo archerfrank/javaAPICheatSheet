@@ -61,3 +61,41 @@ For read operations, the coordinator generally only issues read commands to enou
 
 
 
+## Memtables
+
+Memtables are in-memory structures where Cassandra buffers writes. In general, there is one active memtable per table.
+
+
+
+## SSTables
+
+```
+Data.db
+```
+
+The actual data, i.e. the contents of rows.
+
+```
+Index.db
+```
+
+An index from partition keys to positions in the `Data.db` file. For wide partitions, this may also include an index to rows within a partition.
+
+```
+Summary.db
+```
+
+A sampling of (by default) every 128th entry in the `Index.db` file.
+
+```
+Filter.db
+```
+
+A Bloom Filter of the partition keys in the SSTable.
+
+
+
+Within the `Data.db` file, rows are organized by partition. **These partitions are sorted in token order (i.e. by a hash of the partition key when the default partitioner, `Murmur3Partition`, is used).** Within a partition, rows are stored in the order of their clustering keys.
+
+
+
