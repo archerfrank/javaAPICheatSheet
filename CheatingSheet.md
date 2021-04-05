@@ -316,3 +316,16 @@ class BIT:
                     heapq.heappush(q, (cost[child[0]], child[0]))
 ```
 
+### GCD
+
+```java
+    private static int gcd(int a, int b) {
+        if (b == 0) {
+            return a;
+        }
+        return gcd(b, a % b);
+    }
+```
+
+
+
