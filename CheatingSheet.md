@@ -344,5 +344,15 @@ class BIT:
             return res % mod
 ```
 
+### Mask Iteration
+
+```python
+	mask = 15
+    temp = mask
+    while temp:
+        temp = temp - 1
+        temp = mask & temp
+```
+
 
 
