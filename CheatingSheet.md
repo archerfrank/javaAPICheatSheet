@@ -355,4 +355,101 @@ class BIT:
 ```
 
 
+### Tries XOR
+```python
+class Node:
+    def __init__(self, val):
+        self.left=None
+        self.right=None
+        self.val = val
+        self.N = 20
+    # def __str__(self):
+    #     return str(self.val) + ", left : " + self.left if self.left else "None" +", right :" +self.right if self.right else "None"
+
+    def add(self, num):
+        cur = self
+        for i in range(self.N):
+            x = (1 << (self.N - 1 - i))
+            if x & num > 0:
+                if cur.right is None:
+                    cur.right = Node(1)
+                else:
+                    cur.right.val += 1
+                cur = cur.right
+            else:
+                if cur.left is None:
+                    cur.left = Node(1)
+                else:
+                    cur.left.val += 1
+                cur = cur.left
+    def remove(self, num):
+        cur = self
+        for i in range(self.N):
+            x = (1 << (self.N - 1 - i))
+            if x & num > 0:
+                cur.right.val -= 1
+                if cur.right.val == 0:
+                    cur.right = None
+                    break
+                cur = cur.right
+            else:
+                cur.left.val -= 1
+                if cur.left.val == 0:
+                    cur.left = None
+                    break
+                cur = cur.left
+    def query(self, num):
+        cur = self
+        ans = 0
+        for i in range(self.N):
+            x = (1 << (self.N - 1 - i))
+            if x & num > 0:
+                if cur.left:
+                    ans |= (1 << (self.N - 1 - i))
+                    cur = cur.left
+                else:
+                    cur = cur.right
+            else:
+                if cur.right:
+                    ans |= (1 << (self.N - 1 - i))
+                    cur = cur.right
+                else:
+                    cur = cur.left
+            # print(ans, x & num)
+        return ans
+
+```
+
+```python
+class Trie:
+    def __init__ (self):
+        self.list = defaultdict(Trie)
+        self.end = False
+        self.cur = self
+        self.parent = None
+    def insert(self, word):
+        for x in word:
+            if x not in self.cur.list:
+                self.cur.list[x] = Trie()
+                self.cur.list[x].parent = self.cur
+            self.cur = self.cur.list[x]
+        self.cur.end = True
+        self.cur = self
+    
+    def update(self, w):
+        if w in self.cur.list:
+            self.cur = self.cur.list[w]
+            return True
+        return False
+        
+    def remove(self):
+        self.cur = self.cur.parent
+    
+    def reset(self):
+        self.cur = self
+
+    def isEnd(self):
+        return self.cur.end
+```
+
 
