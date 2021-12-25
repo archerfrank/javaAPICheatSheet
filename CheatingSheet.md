@@ -477,3 +477,91 @@ class Trie:
 ```
 
 
+
+## String Hash
+
+```java
+int strHash(String ss, String b) {//将要查找的字符串b放到被查找的字符串ss的后面，进行hash
+        int P = 131;
+        int n = ss.length(), m = b.length();
+        String str = ss + b;
+        int len = str.length();
+        int[] h = new int[len + 10], p = new int[len + 10];
+        h[0] = 0; p[0] = 1;
+        for (int i = 0; i < len; i++) {
+            p[i + 1] = p[i] * P;
+            h[i + 1] = h[i] * P + str.charAt(i);
+        }
+        int r = len, l = r - m + 1;
+        int target = h[r] - h[l - 1] * p[r - l + 1]; // b 的哈希值
+        for (int i = 1; i <= n; i++) {
+            int j = i + m - 1;
+            int cur = h[j] - h[i - 1] * p[j - i + 1]; // 子串哈希值
+            if (cur == target) return i - 1;
+        }
+        return -1;
+    }
+```
+
+```python
+P = 8597
+X = 3613
+def get_occurrences(pattern, text):
+    res = []
+    lenP = len(pattern)
+    lenT = len(text)
+    hp = getHash(pattern)
+    ht = getHash(text[0 : lenP])
+
+    # most significant coefficient
+    msc = 1
+    for i in range(lenP-1):
+        msc = (msc * X) % P
+
+
+    for i in range(1, lenT-lenP+2):
+        if (hp == ht) and (pattern == text[i-1 : i-1 + lenP]):
+            res.append(i-1)
+        if i-1 + lenP < lenT:
+            ht = (X*(ht - ord(text[i-1]) * msc) + ord(text[i-1 + lenP])) % P
+            if ht < 0:
+                ht += P
+
+    return res
+
+def getHash(s):
+    res = 0
+    l = len(s)
+    for i in range(l):
+        res += (ord(s[i]) * (X**(l-i-1))) % P
+    return res % P
+```
+
+https://leetcode-cn.com/submissions/detail/251381185/
+
+```python
+https://leetcode-cn.com/submissions/detail/251381185/
+a1, a2 = random.randint(26, 100), random.randint(26, 100)
+        # 生成两个模
+mod1, mod2 = random.randint(10**9+7, 2**31-1), random.randint(10**9+7, 2**31-1)
+def check(self, arr, m, a1, a2, mod1, mod2):
+        n = len(arr)
+        aL1, aL2 = pow(a1, m, mod1), pow(a2, m, mod2)
+        h1, h2 = 0, 0
+        for i in range(m):
+            h1 = (h1 * a1 + arr[i]) % mod1
+            h2 = (h2 * a2 + arr[i]) % mod2
+        # 存储一个编码组合是否出现过
+        seen = {(h1, h2)}
+        for start in range(1, n - m + 1):
+            h1 = (h1 * a1 - arr[start - 1] * aL1 + arr[start + m - 1]) % mod1
+            h2 = (h2 * a2 - arr[start - 1] * aL2 + arr[start + m - 1]) % mod2
+            # 如果重复，则返回重复串的起点
+            if (h1, h2) in seen:
+                return start
+            seen.add((h1, h2))
+        # 没有重复，则返回-1
+        return -1
+
+```
+
