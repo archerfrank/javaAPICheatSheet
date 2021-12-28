@@ -445,12 +445,14 @@ class Node:
 ```
 
 ```python
+#带父节点的前缀树
 class Trie:
     def __init__ (self):
         self.list = defaultdict(Trie)
         self.end = False
         self.cur = self
         self.parent = None
+    #插入词
     def insert(self, word):
         for x in word:
             if x not in self.cur.list:
@@ -460,15 +462,23 @@ class Trie:
         self.cur.end = True
         self.cur = self
     
-    def update(self, w):
-        if w in self.cur.list:
-            self.cur = self.cur.list[w]
+    #获取当前位置，用于回溯
+    def getcur(self):
+        return self.cur
+    #设置当前位置
+    def setcur(self, c):
+        self.cur = c
+    #查询单个字符
+   	def query(self,chs):
+        if chs in self.cur.list:
+            self.cur = self.cur.list[chs]
             return True
-        return False
-        
+		return False
+    
+    #删除当前节点，配合查询使用，可以删除词语
     def remove(self):
         self.cur = self.cur.parent
-    
+   
     def reset(self):
         self.cur = self
 
