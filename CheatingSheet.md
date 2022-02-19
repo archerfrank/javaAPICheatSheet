@@ -176,6 +176,17 @@ private class UnionFind {
     }
 ```
 
+## SortedList
+
+```python
+import sortedcontainers
+class Solution:
+    def goodTriplets(self, nums1: List[int], nums2: List[int]) -> int:
+        sl = sortedcontainers.SortedList()
+```
+
+
+
 ## Segment Tree
 
 
