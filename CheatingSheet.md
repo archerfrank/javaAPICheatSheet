@@ -1,5 +1,29 @@
 # Java Cheating Sheet 
 
+## 滑动窗口
+
+```python
+def findSubArray(nums):
+    N = len(nums) # 数组/字符串长度
+    left, right = 0, 0 # 双指针，表示当前遍历的区间[left, right]，闭区间
+    sums = 0 # 用于统计 子数组/子区间 是否有效，根据题目可能会改成求和/计数
+    res = 0 # 保存最大的满足题目要求的 子数组/子串 长度
+    while right < N: # 当右边的指针没有搜索到 数组/字符串 的结尾
+        sums += nums[right] # 增加当前右边指针的数字/字符的求和/计数
+        while 区间[left, right]不符合题意：# 此时需要一直移动左指针，直至找到一个符合题意的区间
+            sums -= nums[left] # 移动左指针前需要从counter中减少left位置字符的求和/计数
+            left += 1 # 真正的移动左指针，注意不能跟上面一行代码写反
+        # 到 while 结束时，我们找到了一个符合题意要求的 子数组/子串
+        res = max(res, right - left + 1) # 需要更新结果
+        right += 1 # 移动右指针，去探索新的区间
+    return res
+
+作者：fuxuemingzhu
+链接：https://leetcode-cn.com/problems/max-consecutive-ones-iii/solution/fen-xiang-hua-dong-chuang-kou-mo-ban-mia-f76z/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+```
+
 
 
 ## Union Find
@@ -152,6 +176,17 @@ private class UnionFind {
     }
 ```
 
+## SortedList
+
+```python
+import sortedcontainers
+class Solution:
+    def goodTriplets(self, nums1: List[int], nums2: List[int]) -> int:
+        sl = sortedcontainers.SortedList()
+```
+
+
+
 ## Segment Tree
 
 
@@ -298,7 +333,7 @@ class BIT:
         helper.cache_clear()
 ```
 
-## 最短路径 shortest path
+## 最短路径 shortest path  dijkstra
 
 ```python
 		adj = defaultdict(list)
@@ -310,12 +345,33 @@ class BIT:
         cost[n] = 0
         while q:
             v = heapq.heappop(q)
+            if v[0] > cost[v[1]]: #dijkstra 每个节点只会出队列一次，后面出队列都可以抛弃
+                continue
             for child in adj[v[1]]:
                 if v[0] + child[1] < cost[child[0]]:
                     cost[child[0]] = v[0] + child[1]
                     heapq.heappush(q, (cost[child[0]], child[0]))
 ```
 
+
+```python
+        adj = defaultdict(list)
+        for x, y,w in edges:
+            adj[x].append((y, w))
+            adj[y].append((x, w))
+        q = [(0, n)]
+        cost = [inf] * (n+1)
+        cost[n] = 0
+        visit = [0] * n
+        while q:
+            v = heapq.heappop(q)
+            if visit[v[1]] == 0:   #dijkstra 每个节点只会出队列一次，后面出队列都可以抛弃
+                visit[v[1]] = 1
+                for child in adj[v[1]]:
+                    if v[0] + child[1] < cost[child[0]]:
+                        cost[child[0]] = v[0] + child[1]
+                        heapq.heappush(q, (cost[child[0]], child[0]))
+```
 ### GCD
 
 ```java
@@ -345,4 +401,227 @@ class BIT:
 链接：https://leetcode-cn.com/problems/minimum-xor-sum-of-two-arrays/solution/liang-ge-shu-zu-zui-xiao-de-yi-huo-zhi-z-2uye/
 来源：力扣（LeetCode）
 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+### Fast Power
+
+
+
+```python
+        def power(base,exponent):
+            res = 1
+            while exponent:
+                if exponent & 1:  # 判断当前的最后一位是否为1，如果为1的话，就需要把之前的幂乘到结果中。
+                    res *= base
+                    res %= mod
+                base *= base % mod  # 一直累乘，如果最后一位不是1的话，就不用了把这个值乘到结果中，但是还是要乘。
+                base %= mod
+                exponent = exponent >> 1
+            return res % mod
+```
+
+### Mask Iteration
+
+```python
+	mask = 15
+    temp = mask
+    while temp:
+        temp = temp - 1
+        temp = mask & temp
+```
+
+
+### Tries XOR
+```python
+class Node:
+    def __init__(self, val):
+        self.left=None
+        self.right=None
+        self.val = val
+        self.N = 20
+    # def __str__(self):
+    #     return str(self.val) + ", left : " + self.left if self.left else "None" +", right :" +self.right if self.right else "None"
+
+    def add(self, num):
+        cur = self
+        for i in range(self.N):
+            x = (1 << (self.N - 1 - i))
+            if x & num > 0:
+                if cur.right is None:
+                    cur.right = Node(1)
+                else:
+                    cur.right.val += 1
+                cur = cur.right
+            else:
+                if cur.left is None:
+                    cur.left = Node(1)
+                else:
+                    cur.left.val += 1
+                cur = cur.left
+    def remove(self, num):
+        cur = self
+        for i in range(self.N):
+            x = (1 << (self.N - 1 - i))
+            if x & num > 0:
+                cur.right.val -= 1
+                if cur.right.val == 0:
+                    cur.right = None
+                    break
+                cur = cur.right
+            else:
+                cur.left.val -= 1
+                if cur.left.val == 0:
+                    cur.left = None
+                    break
+                cur = cur.left
+    def query(self, num):
+        cur = self
+        ans = 0
+        for i in range(self.N):
+            x = (1 << (self.N - 1 - i))
+            if x & num > 0:
+                if cur.left:
+                    ans |= (1 << (self.N - 1 - i))
+                    cur = cur.left
+                else:
+                    cur = cur.right
+            else:
+                if cur.right:
+                    ans |= (1 << (self.N - 1 - i))
+                    cur = cur.right
+                else:
+                    cur = cur.left
+            # print(ans, x & num)
+        return ans
+
+```
+
+```python
+#带父节点的前缀树
+class Trie:
+    def __init__ (self):
+        self.list = defaultdict(Trie)
+        self.end = False
+        self.cur = self
+        self.parent = None
+    #插入词
+    def insert(self, word):
+        for x in word:
+            if x not in self.cur.list:
+                self.cur.list[x] = Trie()
+                self.cur.list[x].parent = self.cur
+            self.cur = self.cur.list[x]
+        self.cur.end = True
+        self.cur = self
+    
+    #获取当前位置，用于回溯
+    def getcur(self):
+        return self.cur
+    #设置当前位置
+    def setcur(self, c):
+        self.cur = c
+    #查询单个字符
+   	def query(self,chs):
+        if chs in self.cur.list:
+            self.cur = self.cur.list[chs]
+            return True
+		return False
+    
+    #删除当前节点，配合查询使用，可以删除词语
+    def remove(self):
+        self.cur = self.cur.parent
+   
+    def reset(self):
+        self.cur = self
+
+    def isEnd(self):
+        return self.cur.end
+```
+
+
+
+## String Hash
+
+```java
+int strHash(String ss, String b) {//将要查找的字符串b放到被查找的字符串ss的后面，进行hash
+        int P = 131;
+        int n = ss.length(), m = b.length();
+        String str = ss + b;
+        int len = str.length();
+        int[] h = new int[len + 10], p = new int[len + 10];
+        h[0] = 0; p[0] = 1;
+        for (int i = 0; i < len; i++) {
+            p[i + 1] = p[i] * P;
+            h[i + 1] = h[i] * P + str.charAt(i);
+        }
+        int r = len, l = r - m + 1;
+        int target = h[r] - h[l - 1] * p[r - l + 1]; // b 的哈希值
+        for (int i = 1; i <= n; i++) {
+            int j = i + m - 1;
+            int cur = h[j] - h[i - 1] * p[j - i + 1]; // 子串哈希值
+            if (cur == target) return i - 1;
+        }
+        return -1;
+    }
+```
+
+```python
+P = 8597
+X = 3613
+def get_occurrences(pattern, text):
+    res = []
+    lenP = len(pattern)
+    lenT = len(text)
+    hp = getHash(pattern)
+    ht = getHash(text[0 : lenP])
+
+    # most significant coefficient
+    msc = 1
+    for i in range(lenP-1):
+        msc = (msc * X) % P
+
+
+    for i in range(1, lenT-lenP+2):
+        if (hp == ht) and (pattern == text[i-1 : i-1 + lenP]):
+            res.append(i-1)
+        if i-1 + lenP < lenT:
+            ht = (X*(ht - ord(text[i-1]) * msc) + ord(text[i-1 + lenP])) % P
+            if ht < 0:
+                ht += P
+
+    return res
+
+def getHash(s):
+    res = 0
+    l = len(s)
+    for i in range(l):
+        res += (ord(s[i]) * (X**(l-i-1))) % P
+    return res % P
+```
+
+https://leetcode-cn.com/submissions/detail/251381185/
+
+```python
+https://leetcode-cn.com/submissions/detail/251381185/
+a1, a2 = random.randint(26, 100), random.randint(26, 100)
+        # 生成两个模
+mod1, mod2 = random.randint(10**9+7, 2**31-1), random.randint(10**9+7, 2**31-1)
+def check(self, arr, m, a1, a2, mod1, mod2):
+        n = len(arr)
+        aL1, aL2 = pow(a1, m, mod1), pow(a2, m, mod2)
+        h1, h2 = 0, 0
+        for i in range(m):
+            h1 = (h1 * a1 + arr[i]) % mod1
+            h2 = (h2 * a2 + arr[i]) % mod2
+        # 存储一个编码组合是否出现过
+        seen = {(h1, h2)}
+        for start in range(1, n - m + 1):
+            h1 = (h1 * a1 - arr[start - 1] * aL1 + arr[start + m - 1]) % mod1
+            h2 = (h2 * a2 - arr[start - 1] * aL2 + arr[start + m - 1]) % mod2
+            # 如果重复，则返回重复串的起点
+            if (h1, h2) in seen:
+                return start
+            seen.add((h1, h2))
+        # 没有重复，则返回-1
+        return -1
+
+```
 
