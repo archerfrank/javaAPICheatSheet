@@ -625,3 +625,15 @@ def check(self, arr, m, a1, a2, mod1, mod2):
 
 ```
 
+## 二维前缀和使用
+每个方向要多一排的0，和一维类似，都要多一个0.
+```python
+presum = [[0] * (n + 1) for _ in range(m + 1)]
+for i in range(1, m + 1):
+    for j in range(1, n + 1):
+        presum[i][j] = presum[i- 1][j] + presum[i][j - 1] - presum[i-1][j - 1]+ grid[i - 1][j -1]
+
+for x1, y1, x2, y2 in calcs:
+    val = presum[x2+1][y2+1] - presum[x1][y2 + 1] - presum[x2 + 1][y1] + presum[x1][y1]
+
+```
