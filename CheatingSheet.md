@@ -637,3 +637,40 @@ for x1, y1, x2, y2 in calcs:
     val = presum[x2+1][y2+1] - presum[x1][y2 + 1] - presum[x2 + 1][y1] + presum[x1][y1]
 
 ```
+
+
+
+## 双向链表
+
+
+
+```python
+class Node:
+    def __init__(self, key="", count=0):
+        self.prev = None
+        self.next = None
+        self.keys = {key}
+        self.count = count
+
+    def insert(self, node: 'Node') -> 'Node':  # 在 self 后插入 node
+        node.prev = self
+        node.next = self.next
+        node.prev.next = node
+        node.next.prev = node
+        return node
+
+    def remove(self):  # 从链表中移除 self
+        self.prev.next = self.next
+        self.next.prev = self.prev
+
+class AllOne:
+    def __init__(self):
+        self.root = Node()
+        self.root.prev = self.root
+        self.root.next = self.root  # 初始化链表哨兵，下面判断节点的 next 若为 self.root，则表示 next 为空（prev 同理）
+        
+
+链接：https://leetcode-cn.com/problems/all-oone-data-structure/solution/quan-o1-de-shu-ju-jie-gou-by-leetcode-so-7gdv/
+
+```
+
