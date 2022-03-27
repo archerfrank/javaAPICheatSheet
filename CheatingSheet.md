@@ -191,6 +191,53 @@ class Solution:
 
 
 
+```python
+class Seg:
+    def __init__(self, nums):
+        self.n = len(nums)
+        self.arr = [0] * (self.n * 4)
+        self.base = nums
+        self.build(1, 0, self.n - 1)
+
+    def build(self, p, l, r):
+        if l == r:
+            self.arr[p] = self.base[l]
+            return
+        mid = (l + r) // 2
+        self.build(p * 2, l , mid)
+        self.build(p * 2 + 1, mid + 1, r)
+        self.push_up(p, mid, l, r)
+
+    def update(self, p, diff, l, r, i) -> None: #传进来就是差值了。
+        if l == r:
+            self.arr[p] += diff
+            return
+        mid = (l + r) // 2
+        if i <= mid:
+            self.update(p * 2, diff, l, mid, i)
+        else:
+            self.update(p * 2 + 1, diff, mid + 1, r, i)
+        self.push_up(p, mid, l, r)
+
+    def query(self, p, l, r, i, j) -> int: #p, l, r表示当前节点的位置，i，j，表示查询的范围
+        if l == r:
+            return self.arr[p]
+        mid = (l + r) // 2
+        if j <= mid:
+            return self.query(p*2, l, mid, i, j)
+        elif i > mid:
+            return self.query(p * 2 + 1, mid + 1, r, i, j)
+        else:
+            return self.query(p *2, l, mid, i, mid) + self.query(p*2+1, mid + 1,r, mid + 1, j)
+
+    def push_up(self, p, mid, l, r): # 有些情况下mid, l, r 可能会用到。
+        self.arr[p] = self.arr[p * 2] + self.arr[p * 2 + 1]
+```
+
+
+
+
+
 ```java
 class SegmentTree {
 
