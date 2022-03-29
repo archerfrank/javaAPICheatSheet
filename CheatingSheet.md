@@ -195,9 +195,10 @@ class Solution:
 class Seg:
     def __init__(self, nums):
         self.n = len(nums)
-        self.arr = [0] * (self.n * 4)
+        self.arr = [0] * (self.n * 3)
         self.base = nums
         self.build(1, 0, self.n - 1)
+        # self.build2()
 
     def build(self, p, l, r):
         if l == r:
@@ -207,6 +208,38 @@ class Seg:
         self.build(p * 2, l , mid)
         self.build(p * 2 + 1, mid + 1, r)
         self.push_up(p, mid, l, r)
+        # print(self.arr)
+    # 下面三个带2的函数是一组，不能和不带2的混用。
+    def build2(self):
+        for i in range(self.n):
+            p = i + self.n
+            self.arr[p] = self.base[i]
+        for i in range(self.n - 1, 0, -1):
+            self.arr[i] = self.arr[i * 2] + self.arr[i*2+1]
+        # print(self.arr)
+        
+    def update2(self, i, val):
+        p = i + self.n
+        self.arr[p] = val
+        while p > 1:
+            self.arr[p >> 1] = self.arr[p] + self.arr[p ^ 1]
+            p >>= 1
+        # print(self.arr)
+
+    def query2(self, l, r):
+        l += self.n
+        r += self.n
+        ans = 0
+        while l <= r:
+            if (l % 2) == 1:
+                ans += self.arr[l]
+                l += 1
+            if (r % 2) == 0:
+                ans += self.arr[r]
+                r-=1
+            l //= 2
+            r //= 2
+        return ans
 
     def update(self, p, diff, l, r, i) -> None: #传进来就是差值了。
         if l == r:
@@ -221,6 +254,8 @@ class Seg:
 
     def query(self, p, l, r, i, j) -> int: #p, l, r表示当前节点的位置，i，j，表示查询的范围
         if l == r:
+            return self.arr[p]
+        if l == i and r == j:
             return self.arr[p]
         mid = (l + r) // 2
         if j <= mid:
