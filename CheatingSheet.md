@@ -189,7 +189,7 @@ class Solution:
 
 ## Segment Tree
 
-
+不带2的和带2的不能混用。
 
 ```python
 class Seg:
@@ -199,7 +199,7 @@ class Seg:
         self.base = nums
         self.build(1, 0, self.n - 1)
         # self.build2()
-
+    #p, l, r总是一起出现， p代表线段数组的位置， l，r代表在原数组的位置
     def build(self, p, l, r):
         if l == r:
             self.arr[p] = self.base[l]
@@ -374,21 +374,23 @@ class BIT {
 }
 
 ```
-
+注意查询的时候是从1开始的，也就是和presum类似。0代表没有，1代表第一个数。
 ```python
 class BIT:
     def __init__(self, nums: List[int]):
         self.sum = [0] * (len(nums) + 1)
         self.n = len(nums)
         for i in range(len(nums)):
-            self.update(i + 1, 0, nums[i])
-
+            self.update(i, 0, nums[i])
+    #[i,j]全包含查询
     def sumRange(self, i: int, j: int) -> int:
         return self.query(j + 1) - self.query(i)
 
     def lowbit(self, i: int) -> int:
         return i & (-i)
+
     def update(self, pos:int, oldValue: int, newValue:int):
+        pos = pos + 1 # 更新的位置要加1
         while pos <= self.n:
             self.sum[pos] += newValue - oldValue
             pos += self.lowbit(pos)
@@ -575,8 +577,49 @@ class Node:
         return ans
 
 ```
-
+下面这个版本更加通用。
 ```python
+class TreeNode:
+    def __init__ (self):
+        self.children = defaultdict(TreeNode)
+        self.end = False
+    # def __str__(self):
+    #     s = ""
+    #     for k in self.children:
+    #         s += k +":" + str(self.children[k]) + ";"
+        return s + str(self.end)
+class Tries:
+    def __init__ (self):
+        self.root = TreeNode()
+    def insert(self, word):
+        cur = self.root
+        for x in word:
+            if x not in cur.children:
+                cur.children[x] = TreeNode()
+            cur = cur.children[x]
+        cur.end = True
+
+#build
+self.root = Tries()
+    for w in dictionary:
+        self.root.insert(w)
+
+#query
+cur = self.root
+for w in word:
+    if w in cur.children:
+        cur = cur.children[w]
+    else:
+        return False
+return cur.end
+
+
+
+
+
+
+
+
 #带父节点的前缀树
 class Trie:
     def __init__ (self):
@@ -617,10 +660,102 @@ class Trie:
     def isEnd(self):
         return self.cur.end
 ```
+## String Hash and KMP and Z 函数
+
+允许K次失配的字符串匹配
+最长回文子串
+最长公共子字符串
+上面三个都可以用string hash解决。
+https://oi-wiki.org/string/hash/
+
+https://oi-wiki.org/string/kmp/
+前缀函数的应用
+
+```python
+def prefix_function(s):
+    n = len(s)
+    pi = [0] * n
+    for i in range(1, n):
+        j = pi[i - 1]
+        while j > 0 and s[i] != s[j]:
+            j = pi[j - 1]
+        if s[i] == s[j]:
+            j += 1
+        pi[i] = j
+    return pi
+```
+
+https://oi-wiki.org/string/z-func/#_3
+后缀函数的应用
+注意z数据的第一位是0
+
+对于个长度为  的字符串 。定义函数  表示  和 （即以  开头的后缀）的最长公共前缀（LCP）的长度。 被称为  的 Z 函数。特别地，。
+
+```python
+# Python Version
+def z_function(s):
+    n = len(s)
+    z = [0] * n
+    l, r = 0, 0
+    for i in range(1, n):
+        if i <= r and z[i - l] < r - i + 1:
+            z[i] = z[i - l]
+        else:
+            z[i] = max(0, r - i + 1)
+            while i + z[i] < n and s[z[i]] == s[i + z[i]]:
+                z[i] += 1
+        if i + z[i] - 1 > r:
+            l = i
+            r = i + z[i] - 1
+    return z
+
+```
+
+
+## String Hash and KMP and Z 函数
+```python
+MOD = 10 ** 9 + 7
+base = 171
+n = len(s)
+val = 0
+
+#可以滚动计算固定长度hash,比如固定长度k, hsh2就是结果
+hsh2=[]
+kbase = base ** (k-1)
+for i in range(k):
+    val = val * base + (ord(s[i]) - ord('a'))
+    val %= MOD
+    hsh2.append(val)
+for i in range(k, n):
+    val = (val + MOD) - (kbase * (ord(s[i - k]) - ord('a'))) % MOD
+    val *= base
+    val += (ord(s[i]) - ord('a'))
+    val %= MOD
+    hsh2.append(val)
+
+
+#计算base的n次方，存储好
+b = [1]
+for i in range(n):
+    b.append(b[-1] * base % MOD)
+
+#计算前缀hash数组
+hsh = [0]
+for i in range(n):
+    val = val * base + (ord(s[i]) - ord('a'))
+    val %= MOD
+    hsh.append(val)
+
+#有了前缀，就可以计算任意一段的hash，比如s[i:j+1]
+def check(i, j):
+    # return 0
+    l = j - i + 1
+    val = hsh[i] * b[l] % MOD  #b数组在这里使用
+    return (hsh[j + 1] + MOD - val) % MOD
 
 
 
-## String Hash
+```
 
 ```java
 int strHash(String ss, String b) {//将要查找的字符串b放到被查找的字符串ss的后面，进行hash
