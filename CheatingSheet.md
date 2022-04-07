@@ -719,7 +719,7 @@ base = 171
 n = len(s)
 val = 0
 
-#可以滚动计算固定长度hash,比如固定长度k, hsh2就是结果
+#用法一：可以滚动计算固定长度hash,比如固定长度k, hsh2就是结果
 hsh2=[]
 kbase = base ** (k-1)
 for i in range(k):
@@ -733,7 +733,7 @@ for i in range(k, n):
     val %= MOD
     hsh2.append(val)
 
-
+#用法二，计算某一段字符串的hash，用来匹配。
 #计算base的n次方，存储好
 b = [1]
 for i in range(n):
