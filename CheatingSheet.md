@@ -891,3 +891,17 @@ class AllOne:
 
 ```
 
+## Random
+
+```python
+import random
+
+print( random.randint(1,10) )        # 产生 1 到 10 的一个整数型随机数  
+print( random.random() )             # 产生 0 到 1 之间的随机浮点数
+# 随机整数：
+print random.randint(1,50)
+
+# 随机选取0到100间的偶数：
+print random.randrange(0, 101, 2)
+```
+
