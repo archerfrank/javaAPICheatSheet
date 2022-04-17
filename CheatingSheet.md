@@ -1,5 +1,11 @@
 # Java Cheating Sheet 
 
+## 易忘记思路
+
+### 二分查找
+### 逆向思维
+
+
 ## 滑动窗口
 
 ```python
