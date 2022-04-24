@@ -911,3 +911,20 @@ print random.randint(1,50)
 print random.randrange(0, 101, 2)
 ```
 
+## Cross 坐标系
+
+https://leetcode-cn.com/problems/erect-the-fence/solution/an-zhuang-zha-lan-by-leetcode-solution-75s3/
+
+从上图中，我们可以观察到点 pp，qq 和 rr 形成的向量相应地都是逆时针方向，向量 \vec{pq} 
+pq
+​	
+  和 \vec{qr} 
+qr
+​	
+  旋转方向为逆时针，函数 \texttt{cross}(p,q,r)cross(p,q,r) 返回值大于 00。
+
+```python
+#r 在pq的右边，那么返回小于0，大于0，那么r就在pq的上方（pr在pq的逆时针方向）
+def cross(p: List[int], q: List[int], r: List[int]) -> int:
+            return (q[0] - p[0]) * (r[1] - q[1]) - (q[1] - p[1]) * (r[0] - q[0])
+```
