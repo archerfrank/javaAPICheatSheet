@@ -275,9 +275,48 @@ class Seg:
         self.arr[p] = self.arr[p * 2] + self.arr[p * 2 + 1]
 ```
 
+Python 动态创建节点。区间查询的例子。
+
+https://leetcode.cn/problems/count-integers-in-intervals/
+
+```python
+class Node:
+    def __init__(self, start, end):
+        self.start = start
+        self.end = end
+        self.val = 0
+        self.left = None
+        self.right = None
+class Seg:
+    def __init__(self, s, e):
+        self.root = Node(s, e)
+        # self.build2()
+    def query(self):
+        return self.root.val
+
+    def update(self, p, l, r) -> None: #只需要判断有没有交集
+        if p.start > r or p.end < l:
+            return
+        if p.start >= l and p.end <= r:
+            p.val = p.end - p.start + 1
+            return
+        mid = (p.start + p.end) // 2
+        if not p.left:
+            p.left = Node(p.start,mid)
+        self.update(p.left, l, r)
+        if not p.right:
+            p.right = Node(mid+1, p.end)
+        self.update(p.right, l, r)
+        self.push_up(p, mid, l, r)
+
+    def push_up(self, p, mid, l, r): # 有些情况下mid, l, r 可能会用到。
+        p.val = max(p.left.val + p.right.val, p.val)
+        # print(self.arr[p], l, r)
+```
 
 
 
+java动态开点。https://leetcode.cn/problems/count-integers-in-intervals/submissions/ 这样不用先build出来整个树，动态的添加节点，防止内存被爆。
 
 ```java
 class SegmentTree {
