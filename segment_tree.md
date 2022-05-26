@@ -143,8 +143,8 @@ class SegmentTree:
         if node is None:
             node = self.root
         if node.l >= l and node.r <= r:
-            node.v = v
-            node.add = v
+            node.v = v   ## todo
+            node.add = v  ## todo
             return
         self.pushdown(node)
         if l <= node.mid:
@@ -163,20 +163,20 @@ class SegmentTree:
         self.pushdown(node)
         v = 0
         if l <= node.mid:
-            v = max(v, self.query(l, r, node.left))
+            v = max(v, self.query(l, r, node.left))  ## todo
         if r > node.mid:
-            v = max(v, self.query(l, r, node.right))
+            v = max(v, self.query(l, r, node.right))  ## todo
         return v
 
     def pushup(self, node):
-        node.v = max(node.left.v, node.right.v)
+        node.v = max(node.left.v, node.right.v)   ## todo
 
     def pushdown(self, node):
         if node.left is None:
             node.left = Node(node.l, node.mid)
         if node.right is None:
             node.right = Node(node.mid + 1, node.r)
-        if node.add:
+        if node.add:  ## todo
             node.left.v = node.add
             node.right.v = node.add
             node.left.add = node.add
@@ -258,6 +258,74 @@ class SegmentTree:
             node.add = 0
 ```
 
+动态开点，区间叠加， 然后区间求和。
+
+```python
+class Node:
+    def __init__(self, l, r):
+        self.left = None
+        self.right = None
+        self.l = l
+        self.r = r
+        self.mid = (l + r) >> 1
+        self.v = 0
+        self.add = 0
+
+
+class SegmentTree:
+    def __init__(self):
+        self.root = Node(1, int(1e9))
+
+    def modify(self, l, r, v, node=None):
+        if l > r:
+            return
+        if node is None:
+            node = self.root
+        if node.l >= l and node.r <= r:
+            node.v += v
+            node.add += v
+            # print(node.l, node.r, node.v, node.add)
+            return
+        self.pushdown(node)
+        if l <= node.mid:
+            self.modify(l, r, v, node.left)
+        if r > node.mid:
+            self.modify(l, r, v, node.right)
+        self.pushup(node)
+
+    def query(self, l, r, node=None):
+        if l > r:
+            return 0
+        if node is None:
+            node = self.root
+        if node.l >= l and node.r <= r:
+            # print(node.l, node.r, node.v)
+            return node.v
+        self.pushdown(node)
+        v = 0
+        if l <= node.mid:
+            v += self.query(l, r, node.left)
+        if r > node.mid:
+            v += self.query(l, r, node.right)
+        # print(node.l, node.r, v)
+        return v
+
+    def pushup(self, node):
+        node.v = node.left.v + node.right.v
+
+    def pushdown(self, node):
+        if node.left is None:
+            node.left = Node(node.l, node.mid)
+        if node.right is None:
+            node.right = Node(node.mid + 1, node.r)
+        if node.add:
+            node.left.v += node.add
+            node.right.v += node.add
+            node.left.add += node.add
+            node.right.add += node.add
+            node.add = 0
+```
+
 
 java动态开点。https://leetcode.cn/problems/count-integers-in-intervals/submissions/ 这样不用先build出来整个树，动态的添加节点，防止内存被爆。
 
@@ -328,4 +396,64 @@ class SegmentTree {
 }
 ```
 
-## 
+java 动态开点，更抽象实现
+
+```java
+class Solution {
+    int N = (int)1e9;
+    class Node {
+        // ls 和 rs 分别代表当前区间的左右子节点
+        Node ls, rs;
+        // val 代表当前区间的最大高度，add 为懒标记
+        int val, add;
+    }
+    Node root = new Node();
+    void update(Node node, int lc, int rc, int l, int r, int v) {
+        if (l <= lc && rc <= r) {
+            node.add = v;  // to do  可以参考上面python看不同的实现要怎么改。
+            node.val = v;  // to do
+            return ;
+        }
+        pushdown(node);
+        int mid = lc + rc >> 1;
+        if (l <= mid) update(node.ls, lc, mid, l, r, v);
+        if (r > mid) update(node.rs, mid + 1, rc, l, r, v);
+        pushup(node);
+    }
+    int query(Node node, int lc, int rc, int l, int r) {
+        if (l <= lc && rc <= r) return node.val;
+        pushdown(node);
+        int mid = lc + rc >> 1, ans = 0;
+        if (l <= mid) ans = query(node.ls, lc, mid, l, r);
+        if (r > mid) ans = Math.max(ans, query(node.rs, mid + 1, rc, l, r));
+        return ans;
+    }
+    void pushdown(Node node) {
+        if (node.ls == null) node.ls = new Node();
+        if (node.rs == null) node.rs = new Node();
+        if (node.add == 0) return ;
+        node.ls.add = node.add;   // to do
+        node.rs.add = node.add;   // to do
+        node.ls.val = node.add; // to do
+        node.rs.val = node.add;// to do
+        node.add = 0;
+    }
+    void pushup(Node node) {
+        node.val = Math.max(node.ls.val, node.rs.val);  // to do
+    }
+    public List<Integer> fallingSquares(int[][] ps) {
+        List<Integer> ans = new ArrayList<>();
+        for (int[] info : ps) {
+            int x = info[0], h = info[1], cur = query(root, 0, N, x, x + h - 1);
+            update(root, 0, N, x, x + h - 1, cur + h);
+            ans.add(root.val);
+        }
+        return ans;
+    }
+}
+
+作者：AC_OIer
+链接：https://leetcode.cn/problems/falling-squares/solution/by-ac_oier-zpf0/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+```
