@@ -6,7 +6,7 @@
 class Seg:
     def __init__(self, nums):
         self.n = len(nums)
-        self.arr = [0] * (self.n * 3)
+        self.arr = [0] * (self.n * 4)
         self.base = nums
         self.build(1, 0, self.n - 1)
         # self.build2()
