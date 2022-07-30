@@ -77,6 +77,34 @@ class UnionFind:
     def connected(self, x: int, y: int) -> bool:
         x, y = self.findset(x), self.findset(y)
         return x == y
+    
+ 
+class UnionFind:
+    def __init__(self, n: int):
+        self.parent = list(range(n))
+        self.rank = [0] * n   # 层高
+
+    def find(self, x: int) -> int:
+        if self.parent[x] != x:
+            self.parent[x] = self.find(self.parent[x])
+        return self.parent[x]
+
+    def merge(self, x: int, y: int) -> None:
+        x, y = self.find(x), self.find(y)
+        if x == y:
+            return
+        if self.rank[x] > self.rank[y]:
+            self.parent[y] = x
+        elif self.rank[x] < self.rank[y]:
+            self.parent[x] = y
+        else:
+            self.parent[y] = x
+            self.rank[x] += 1
+
+作者：LeetCode-Solution
+链接：https://leetcode.cn/problems/largest-component-size-by-common-factor/solution/an-gong-yin-shu-ji-suan-zui-da-zu-jian-d-amdx/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
 ```
 
 ```java
