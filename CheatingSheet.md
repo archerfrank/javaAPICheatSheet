@@ -811,3 +811,56 @@ qr
 def cross(p: List[int], q: List[int], r: List[int]) -> int:
             return (q[0] - p[0]) * (r[1] - q[1]) - (q[1] - p[1]) * (r[0] - q[0])
 ```
+
+## 数位dp
+将 nn 转换成字符串 ss，定义 f(i,mask,isLimit,isNum) 表示从构造 nn 从高到低第 i 位及其之后位的方案数，其余参数的含义为：
+
+* mask 表示前面选过的数字集合，换句话说，第 i 位要选的数字不能在 mask 中。
+* isLimit 表示当前是否受到了 nn 的约束。若为真，则第 i 位填入的数字至多为 s[i]，否则可以是 9。
+* isNum 表示 i 前面的位数是否填了数字。若为假，则当前位可以跳过（不填数字），或者要填入的数字至少为 1；若为真，则要填入的数字可以从 0 开始。
+
+```
+class Solution:
+    def countSpecialNumbers(self, n: int) -> int:
+        s = str(n)
+        @cache
+        def f(i: int, mask: int, is_limit: bool, is_num: bool) -> int:
+            if i == len(s):
+                return int(is_num)
+            res = 0
+            if not is_num:  # 可以跳过当前数位
+                res = f(i + 1, mask, False, False)
+            up = int(s[i]) if is_limit else 9
+            for d in range(0 if is_num else 1, up + 1):  # 枚举要填入的数字 d
+                if mask >> d & 1 == 0:  # d 不在 mask 中
+                    res += f(i + 1, mask | (1 << d), is_limit and d == up, True)
+            return res
+        return f(0, 0, True, False)
+
+作者：endlesscheng
+链接：https://leetcode.cn/problems/count-special-integers/solution/shu-wei-dp-mo-ban-by-endlesscheng-xtgx/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+```
+
+下面是我的写法
+
+```
+class Solution:
+    def countSpecialNumbers(self, n: int) -> int:
+        s = str(n)
+        @lru_cache(None)
+        def dp(i, mask, limit, num):
+            if i == len(s):
+                return num
+            res = 0
+            if num == 0:
+                res = dp(i + 1, mask, False, 0)
+
+            up = int(s[i]) if limit else 9
+            for c in range(1 - num, up + 1):
+                if mask >> c & 1 == 0:
+                    res += dp(i + 1, mask | (1 << c), c == up and limit, 1)
+            return res
+        return dp(0, 0, True, 0)
+```
