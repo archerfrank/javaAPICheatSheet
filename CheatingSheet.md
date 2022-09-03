@@ -868,3 +868,46 @@ class Solution:
             return res
         return dp(0, 0, True, 0)
 ```
+
+
+
+## 双指针
+
+```python
+	#总开销 是 max(chargeTimes) + k * sum(runningCosts)	 要小于budget
+    
+    	n = len(chargeTimes)
+    	q = deque() # idx (保存当前区间最大值的坐标)
+        l, r = 0, 0 # 区间从0， 0 开始
+        q.append(0)  # 初始化当前区间最大长度
+        ans = 0  #符合条件的最大长度
+        total = runningCosts[0] # 当前区间之和
+        def check(l, r):
+            return chargeTimes[q[0]] + (r - l + 1) * total
+            
+        #需要时刻保证区间对应的q和total正确， 区间变化是可能r < l,需要对应的处理。r是在加一后处理，
+        #l是在减一前处理。当r = l - 1是表示没有数据。
+        while l < n:
+            while r < l:
+                r += 1
+                while q and chargeTimes[r] >= chargeTimes[q[-1]]:
+                        q.pop()
+                q.append(r)
+                total += runningCosts[r]
+            while r < n and check(l, r) <= budget:
+                ans = max(r - l + 1, ans)
+                r += 1
+                if r < n:
+                    while q and chargeTimes[r] >= chargeTimes[q[-1]]:
+                        q.pop()
+                    q.append(r)
+                    total += runningCosts[r]
+            #     print("--",l, r, total, q)
+            # print(l, r, total, q, ans)
+            total -= runningCosts[l]
+            if q and q[0] == l:
+                q.popleft()
+            l += 1
+        return ans
+```
+
