@@ -956,3 +956,46 @@ class Solution:
         return ans
 ```
 
+## 树hash
+
+https://oi-wiki.org/graph/tree-hash/#%E6%96%B9%E6%B3%95%E4%BA%8C
+
+https://leetcode.cn/submissions/detail/359535728/
+
+
+
+声明几个质数作为seed和MOD。 使用异或和的方法。childhash*seed + childtreesize，然后对全部child做异或和。
+
+选择两套指数，防止hash碰撞。
+
+```python
+class Solution:
+    def findDuplicateSubtrees(self, root: Optional[TreeNode]) -> List[Optional[TreeNode]]:
+        LEFT_WEIGHT = 419
+        RIGHT_WEIGHT = 491
+        MOD = 10 ** 9 + 7
+        seen = set()
+        ans = []
+        added = set()
+        def dfs(node):
+            if not node:
+                return 0, 0, 0
+            l1, l2,sizel = dfs(node.left)
+            r1, r2,sizer = dfs(node.right)
+            hash_val1 = node.val + 217;
+            hash_val1 = (hash_val1 + ((l1 * LEFT_WEIGHT + sizel) ^ (r1 * RIGHT_WEIGHT + sizer))) % MOD;
+            hash_val2 = node.val + 317;
+            hash_val2 = (hash_val2 + ((l2 * RIGHT_WEIGHT + sizel) ^ (r2 * LEFT_WEIGHT + sizer))) % MOD;
+            tr = (hash_val1, hash_val2)
+            if tr in seen:
+                if tr not in added:
+                    # print(tr)
+                    added.add(tr)
+                    ans.append(node)
+            else:
+                seen.add(tr)
+            return hash_val1, hash_val2, sizel + sizer + 1
+        dfs(root)
+        return ans
+```
+
