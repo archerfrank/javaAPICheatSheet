@@ -999,3 +999,18 @@ class Solution:
         return ans
 ```
 
+
+
+## 两个字符串的最长公共前缀。
+
+下面的例子是一个字符串的，两个字符串同样适用。
+
+```python
+		n = len(s)
+        lcp = [[0] * (n + 1) for _ in range(n + 1)]  # lcp[i][j] 表示 s[i:] 和 s[j:] 的最长公共前缀
+        for i in range(n - 1, -1, -1):
+            for j in range(n - 1, i, -1):
+                if s[i] == s[j]:
+                    lcp[i][j] = lcp[i + 1][j + 1] + 1
+```
+
