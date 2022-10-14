@@ -912,8 +912,7 @@ class Solution:
     
 #下面的更好写， 可以列举右边节点r， 最好r从-1开始，r<l时，表示区间没有数据。
 # 区间变化是可能r < l,需要对应的处理。r是在加一后处理，l是在减一前处理。当r = l - 1是表示没有数据。
-
-		q = deque() # idx
+        q = deque() # idx
         n = len(chargeTimes)
         l, r = 0, -1
         ans = 0
@@ -936,7 +935,7 @@ class Solution:
         return ans
     
 #也可以这么写，似乎更合理， 循环开始，先处理右节点，然后看看左节点到哪里可以和当前右节点符合条件。最后再r+=1
-		q = deque() # idx
+        q = deque() # idx
         n = len(chargeTimes)
         l, r = 0, 0
         ans = 0
@@ -1006,7 +1005,7 @@ class Solution:
 下面的例子是一个字符串的，两个字符串同样适用。
 
 ```python
-		n = len(s)
+        n = len(s)
         lcp = [[0] * (n + 1) for _ in range(n + 1)]  # lcp[i][j] 表示 s[i:] 和 s[j:] 的最长公共前缀
         for i in range(n - 1, -1, -1):
             for j in range(n - 1, i, -1):
