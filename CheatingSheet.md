@@ -1013,3 +1013,29 @@ class Solution:
                     lcp[i][j] = lcp[i + 1][j + 1] + 1
 ```
 
+
+## 使用广搜将无向树 变成 有向生成树，这样可以用direction数据来dfs，不在需要visit set。
+```python
+        n = len(nums)
+        dct = [[] for _ in range(n)]
+        for i, j in edges:
+            dct[i].append(j)
+            dct[j].append(i)
+        direction = [[] for _ in range(n)]
+        visit = {0}
+        stack = [0]
+        while stack:
+            nex = []
+            for i in stack:
+                for j in dct[i]:
+                    if j not in visit:
+                        visit.add(j)
+                        nex.append(j)
+                        direction[i].append(j)
+            stack = nex
+
+作者：liupengsay
+链接：https://leetcode.cn/circle/discuss/7RMPmn/view/oleAax/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+```
