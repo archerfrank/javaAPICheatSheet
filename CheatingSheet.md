@@ -1039,3 +1039,66 @@ class Solution:
 来源：力扣（LeetCode）
 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
 ```
+
+
+
+## Cycle Detection 环检测
+
+```python
+from collections import defaultdict
+
+edges = [(1,3), (4,6), (3,6), (1,4)]
+adj = defaultdict(set)
+for x, y in edges:
+    adj[x].add(y)
+    adj[y].add(x)
+
+col = defaultdict(int)
+def dfs(x, parent=None):
+    if col[x] == 1: return True
+    if col[x] == 2: return False
+    col[x] = 1
+    res = False
+    for y in adj[x]:
+        if y == parent: continue
+        if dfs(y, x): res = True
+    col[x] = 2
+    return res
+
+for x in adj:
+    if dfs(x):
+        print "There's a cycle reachable from %d!" % x
+```
+
+
+
+## 图的二分染色
+
+
+
+```python
+class Solution:
+    def possibleBipartition(self, n: int, dislikes: List[List[int]]) -> bool:
+        def dfs(i, c):
+            color[i] = c
+            for j in g[i]:
+                if color[j] == c:
+                    return False
+                if color[j] == 0 and not dfs(j, 3 - c):
+                    return False
+            return True
+
+        g = defaultdict(list)
+        color = [0] * n
+        for a, b in dislikes:
+            a, b = a - 1, b - 1
+            g[a].append(b)
+            g[b].append(a)
+        return all(c or dfs(i, 1) for i, c in enumerate(color))
+
+作者：lcbin
+链接：https://leetcode.cn/problems/possible-bipartition/solution/by-lcbin-rgi1/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+```
+
