@@ -1040,5 +1040,80 @@ class Solution:
 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
 ```
 
-### 乘法逆元。
+
+## Cycle Detection 环检测
+
+```python
+from collections import defaultdict
+
+edges = [(1,3), (4,6), (3,6), (1,4)]
+adj = defaultdict(set)
+for x, y in edges:
+    adj[x].add(y)
+    adj[y].add(x)
+
+col = defaultdict(int)
+def dfs(x, parent=None):
+    if col[x] == 1: return True
+    if col[x] == 2: return False
+    col[x] = 1
+    res = False
+    for y in adj[x]:
+        if y == parent: continue
+        if dfs(y, x): res = True
+    col[x] = 2
+    return res
+
+for x in adj:
+    if dfs(x):
+        print "There's a cycle reachable from %d!" % x
+```
+
+
+
+## 图的二分染色
+
+
+
+```python
+class Solution:
+    def possibleBipartition(self, n: int, dislikes: List[List[int]]) -> bool:
+        def dfs(i, c):
+            color[i] = c
+            for j in g[i]:
+                if color[j] == c:
+                    return False
+                if color[j] == 0 and not dfs(j, 3 - c):
+                    return False
+            return True
+
+        g = defaultdict(list)
+        color = [0] * n
+        for a, b in dislikes:
+            a, b = a - 1, b - 1
+            g[a].append(b)
+            g[b].append(a)
+        return all(c or dfs(i, 1) for i, c in enumerate(color))
+
+作者：lcbin
+链接：https://leetcode.cn/problems/possible-bipartition/solution/by-lcbin-rgi1/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+```
+
+## 乘法逆元。
 当要mod求解是，如果有除法，就要使用乘法逆元的方式。
+如果要求a/b % MOD,这里要把a和b 都求出来，除法之后取模结果才对。如果a和b都比较大，就会有溢出的可能。 如果可以求出a%MOD 和 b%MOD的值，就可以是用下面的函数，得到a/b % MOD。
+
+```python
+    MOD = 10 ** 9 + 7
+    def div(a, b):
+        return (a*pow(b,MOD-2,MOD))%MOD;
+
+    s1 = div(s1, s2)
+```
+
+https://leetcode.cn/submissions/detail/391018907/
+
+https://leetcode.cn/problems/count-anagrams/solution/ccheng-fa-ni-yuan-chuli-by-thdlrt-74ei/
+
