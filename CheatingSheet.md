@@ -1117,3 +1117,65 @@ https://leetcode.cn/submissions/detail/391018907/
 
 https://leetcode.cn/problems/count-anagrams/solution/ccheng-fa-ni-yuan-chuli-by-thdlrt-74ei/
 
+
+
+## 质数相关
+
+```python
+@lru_cache(None)
+def get_prime_factor(num):
+    # 质因数分解
+    res = []
+    for i in range(2, int(math.sqrt(num)) + 1):
+        cnt = 0
+        while num % i == 0:
+            num //= i
+            cnt += 1
+        if cnt:
+            res.append([i, cnt])
+        if i > num:
+            break
+    if num != 1 or not res:
+        res.append([num, 1])
+    # 从小到大返回质因数分解以及对应的幂次，注意 1 返回 []
+    return res
+
+作者：liupengsay
+链接：https://leetcode.cn/circle/discuss/TeTCFl/view/4MKAA4/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+
+def sieve_of_eratosthenes(n):  # 埃拉托色尼筛选法，返回小于等于n的素数
+    primes = [True] * (n + 1)  # 范围0到n的列表
+    p = 2  # 这是最小的素数
+    while p * p <= n:  # 一直筛到sqrt(n)就行了
+        if primes[p]:  # 如果没被筛，一定是素数
+            for i in range(p * 2, n + 1, p):  # 筛掉它的倍数即可
+                primes[i] = False
+        p += 1
+    primes = [element for element in range(2, n + 1) if primes[element]]  # 得到所有小于等于n的素数
+    return primes
+
+def euler_flag_prime(n):
+    # 欧拉线性筛素数，返回小于等于n的所有素数
+    flag = [False for _ in range(n + 1)]
+    prime_numbers = []
+    for num in range(2, n + 1):
+        if not flag[num]:
+            prime_numbers.append(num)
+        for prime in prime_numbers:
+            if num * prime > n:
+                break
+            flag[num * prime] = True
+            if num % prime == 0:
+                break
+    return prime_numbers
+
+作者：liupengsay
+链接：https://leetcode.cn/circle/discuss/TeTCFl/view/4MKAA4/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+```
+
+
+
