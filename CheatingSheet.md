@@ -412,7 +412,7 @@ class Node:
         self.N = 20
     # def __str__(self):
     #     return str(self.val) + ", left : " + self.left if self.left else "None" +", right :" +self.right if self.right else "None"
-
+	#添加一个数
     def add(self, num):
         cur = self
         for i in range(self.N):
@@ -429,6 +429,7 @@ class Node:
                 else:
                     cur.left.val += 1
                 cur = cur.left
+    	#删除一个数
     def remove(self, num):
         cur = self
         for i in range(self.N):
@@ -445,6 +446,7 @@ class Node:
                     cur.left = None
                     break
                 cur = cur.left
+     	#查询对于num，可以获得的最大xor值。
     def query(self, num):
         cur = self
         ans = 0
@@ -464,6 +466,39 @@ class Node:
                     cur = cur.left
             # print(ans, x & num)
         return ans
+    
+    #异或后，值比upbound小异或对的个数。
+    def less(self, num, upbound):
+        cur = self
+        ans = 0
+        for i in range(self.N):
+            x = (1 << (self.N - 1 - i))
+            if x & num > 0 and x & upbound > 0:
+                if cur.right:
+                    ans += cur.right.val
+                cur = cur.left
+            elif x & num == 0 and x & upbound > 0:
+                if cur.left:
+                    ans += cur.left.val
+                cur = cur.right
+            elif x & num > 0 and x & upbound == 0:
+                cur = cur.right
+            else:
+                cur = cur.left
+            if cur is None:
+                break
+        return ans
+    
+class Solution:
+    def countPairs(self, nums: List[int], low: int, high: int) -> int:
+        t = Node(0)
+        ans = 0
+        for x in nums:
+            t.add(x)
+            ans += t.less(x, high + 1) - t.less(x, low)
+        return ans 	
+  
+#https://leetcode.cn/problems/count-pairs-with-xor-in-a-range/submissions/ 	
 
 ```
 下面这个版本更加通用。
