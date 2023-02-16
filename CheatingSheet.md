@@ -1249,9 +1249,9 @@ class Solution:
 如果没有负数，可以使用双指针来做。
 这个有负数就要用到前缀和，然后用stack或者queue来处理。
 
-最长的用stack   https://leetcode.cn/problems/longest-well-performing-interval/ 
+最长的用stack, 并且要**反向遍历**   https://leetcode.cn/problems/longest-well-performing-interval/ 
 
-最短的用queue   https://leetcode.cn/problems/shortest-subarray-with-sum-at-least-k/ 
+最短的用queue, 并且**正向遍历**   https://leetcode.cn/problems/shortest-subarray-with-sum-at-least-k/ 
 
 ```python
 #最长
