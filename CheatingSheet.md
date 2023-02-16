@@ -1245,3 +1245,59 @@ class Solution:
 
 
 
+**数组中有负数的寻找最长或者最短子数组和的方法。**
+如果没有负数，可以使用双指针来做。
+这个有负数就要用到前缀和，然后用stack或者queue来处理。
+
+最长的用stack   https://leetcode.cn/problems/longest-well-performing-interval/ 
+
+最短的用queue   https://leetcode.cn/problems/shortest-subarray-with-sum-at-least-k/ 
+
+```python
+#最长
+class Solution:
+    def longestWPI(self, hours: List[int]) -> int:
+        n = len(hours)
+        f = [0]
+        for x in hours:
+            if x > 8:
+                f.append(f[-1] + 1)
+            else:
+                f.append(f[-1] - 1)
+        
+        ans = 0
+        stack = [0]
+        for i in range(n + 1):
+            if f[i] < f[stack[-1]]:
+                stack.append(i)
+        # print(f)
+        # print(stack)
+        for r in range(n, 0, -1):
+            while stack and f[stack[-1]] < f[r]:
+                ans = max(ans, r - stack[-1])
+                stack.pop()
+        return ans
+
+#最短
+
+class Solution:
+    def shortestSubarray(self, nums: List[int], k: int) -> int:
+        preSumArr = [0]
+        res = len(nums) + 1
+        for num in nums:
+            preSumArr.append(preSumArr[-1] + num)
+        q = deque()
+        for i, curSum in enumerate(preSumArr):
+            while q and curSum - preSumArr[q[0]] >= k:
+                res = min(res, i - q.popleft())
+            while q and preSumArr[q[-1]] >= curSum:
+                q.pop()
+            q.append(i)
+        return res if res < len(nums) + 1 else -1
+
+# 作者：LeetCode-Solution
+# 链接：https://leetcode.cn/problems/shortest-subarray-with-sum-at-least-k/solution/he-zhi-shao-wei-k-de-zui-duan-zi-shu-zu-57ffq/
+# 来源：力扣（LeetCode）
+# 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+
+```
