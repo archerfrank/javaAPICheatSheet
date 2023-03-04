@@ -401,6 +401,9 @@ class BIT:
         temp = mask & temp
 ```
 
+https://leetcode.cn/problems/triples-with-bitwise-and-equal-to-zero/solution/li-jie-tu-shi-wei-yun-suan-qiu-zi-ji-li-c7gx3/
+
+
 
 ### Tries XOR
 ```python
