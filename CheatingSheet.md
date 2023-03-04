@@ -394,7 +394,7 @@ class BIT:
 ### Mask Iteration
 
 ```python
-	mask = 15
+    mask = 15
     temp = mask
     while temp:
         temp = temp - 1
@@ -1299,5 +1299,39 @@ class Solution:
 # 链接：https://leetcode.cn/problems/shortest-subarray-with-sum-at-least-k/solution/he-zhi-shao-wei-k-de-zui-duan-zi-shu-zu-57ffq/
 # 来源：力扣（LeetCode）
 # 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+
+```
+
+
+## 二维单调队列，求二维区间最大值
+
+
+
+```python
+class Solution:
+    def largestLocal(self, grid: List[List[int]], h: int, w: int) -> List[List[int]]:
+        n = len(grid)
+        res = [[0 for j in range(n - h)] for i in range(n - w)] # 创建结果数组
+        for i in range(n):
+            queue = deque()     # 单调队列
+            for j in range(n):
+                # 单调队列添加候选值
+                while len(queue) != 0 and grid[i][j] >= grid[i][queue[-1]]:
+                    queue.pop()
+                queue.append(j)
+                # 滑动窗口达到大小w可以处理
+                if j >=  w - 1 :
+                    value = grid[i][queue[0]]   # 获取单调队列中当前行当前滑动窗口中的最大值，即队首索引对应的值
+                    for k in range(i - (h - 1), i + 1):   # 更新当前行及其前h-1行该列的最大值
+                        if k >= 0 and k < n - h:    # 行必须在结果数组的范围内
+                            res[k][j - (w - 1)] = max(res[k][j - (w - 1)],value)
+                    if queue[0] <= j - (w - 1):   # 当前最大值位于滑动窗口最左侧，弹出这个最大值,
+                        queue.popleft()
+        return res
+
+作者：lxk1203
+链接：https://leetcode.cn/problems/largest-local-values-in-a-matrix/solution/javapythonmei-ju-mo-ni-dan-diao-dui-lie-fm0pn/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
 
 ```
