@@ -326,6 +326,75 @@ class SegmentTree:
             node.add = 0
 ```
 
+Python 固定开点，模板, 区间赋值，求最大值。
+```python
+    class Solution:
+    def lengthOfLIS(self, nums: List[int], k: int) -> int:
+        n = 100001  #x线段树的区间，这里是1 - 100000。如果查询区间有零，那么update和query的时候都要加一，做一个映射。
+        node = [0] * (4 * n)
+        todo = [0] * (4 * n)
+
+        def pushup(o: int) -> None:
+            node[o] = max(node[o * 2], node[o * 2 + 1])
+
+        def do(o: int, l: int, r: int, V:int) -> None:
+            node[o] = V
+            todo[o] = V
+
+        # 初始化线段树   o,l,r=1,1,n
+        def build(o: int, l: int, r: int) -> None:
+            if l == r:
+                node[o] = 0
+                return
+            m = (l + r) // 2
+            build(o * 2, l, m)
+            build(o * 2 + 1, m + 1, r)
+            pushup(o)
+
+        def pushdown(o:int, l:int, r:int):
+            # print(o, l, r)
+            if todo[o]:
+                do(o * 2, l, m, todo[o])
+                do(o * 2 + 1, m + 1, r, todo[o])
+                todo[o] = 0
+
+        # 修改区间 [L,R]   o,l,r=1,1,n
+        def update(o: int, l: int, r: int, L: int, R: int, V:int) -> None:
+            if L <= l and r <= R:
+                do(o, l, r, V)
+                return
+            pushdown(o, l, r)
+            m = (l + r) // 2
+            if m >= L: update(o * 2, l, m, L, R, V)
+            if m < R: update(o * 2 + 1, m + 1, r, L, R, V)
+            pushup(o)
+
+        # 查询区间 [L,R]   o,l,r=1,1,n
+        def query(o, l, r, L, R) -> int: #o, l, r表示当前节点的位置，L，R，表示查询的范围
+            if L <= l and r <= R:
+                return node[o]
+            pushdown(o, l, r)
+            m = (l + r) // 2
+            ans = 0
+            if m >= L: ans = max(query(o * 2, l, m, L, R), ans)
+            if m < R: ans = max(query(o * 2 + 1, m + 1, r, L, R), ans)
+            return ans
+        
+        ans = 1
+        build(1, 1, n)
+        for x in nums:
+            if x == 1:  #1 的时候需要特别注意。
+                update(1,1,n,1,1,1)
+                continue
+            L, R = max(1, x - k), x - 1  # 注意因为线段树是从1开始，所以L不能为0
+            m = query(1, 1, n, L, R)
+            ans = max(ans, m + 1)
+            # print(x, m, ans, L, R)
+            update(1,1,n,x,x,m+1)
+        return ans
+#https://leetcode.cn/problems/longest-increasing-subsequence-ii/ 
+#https://leetcode.cn/problems/handling-sum-queries-after-update/
+```
 
 java动态开点。https://leetcode.cn/problems/count-integers-in-intervals/submissions/ 这样不用先build出来整个树，动态的添加节点，防止内存被爆。
 
@@ -396,6 +465,8 @@ class SegmentTree {
 }
 ```
 
+
+
 java 动态开点，更抽象实现
 
 ```java
@@ -452,10 +523,17 @@ class Solution {
     }
 }
 
-作者：AC_OIer
-链接：https://leetcode.cn/problems/falling-squares/solution/by-ac_oier-zpf0/
-来源：力扣（LeetCode）
-著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+// 作者：AC_OIer
+// 链接：https://leetcode.cn/problems/falling-squares/solution/by-ac_oier-zpf0/
+// 来源：力扣（LeetCode）
+// 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+
+//https://leetcode.cn/submissions/detail/404505941/
+            // int L = Math.max(1, x - k);
+            // int R = x - 1;
+            // int m = query(root, 1, N, L, R);
+            // ans = Math.max(ans, m + 1);
+            // update(root, 1, N, x, x, m + 1);
 ```
 
 java 动态开点，区间叠加， 然后区间求和。
