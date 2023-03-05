@@ -1213,7 +1213,43 @@ def euler_flag_prime(n):
 链接：https://leetcode.cn/circle/discuss/TeTCFl/view/4MKAA4/
 来源：力扣（LeetCode）
 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+
+
+#结合上面求出来primes数组，可以是用下面的方法求质因数。
+p = sieve_of_eratosthenes(1000000)   
+primes = set(p)
+@lru_cache(None)
+def get_prime_factor(x):
+    ans = Counter()
+    while x != 1:
+        if x in primes:
+            ans[x] += 1
+            return ans
+        for pri in primes:
+            while x % pri == 0:
+                ans[pri] += 1
+                x //= pri
+    return ans
+
+https://leetcode.cn/problems/split-the-array-to-make-coprime-products/
+
+#分解质因数
+@lru_cache(None)
+def get_prime_factor(x):
+    ans = Counter()
+    d = 2
+    while d * d <= x:  # 分解质因数
+        while x % d == 0:
+            ans[d] += 1
+            x //= d
+        d += 1
+    if x > 1: ans[x] += 1
+    return ans
+
 ```
+
+
+
 
 
 
