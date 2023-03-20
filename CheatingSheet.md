@@ -883,6 +883,34 @@ class Solution:
 链接：https://leetcode.cn/problems/count-special-integers/solution/shu-wei-dp-mo-ban-by-endlesscheng-xtgx/
 来源：力扣（LeetCode）
 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+
+
+# Given an integer n, return the number of positive integers in the range [1, n] that have at least one repeated digit.
+
+class Solution:
+    def numDupDigitsAtMostN(self, n: int) -> int:
+        A = list(map(int, str(n)))
+        N = len(A)
+        @cache
+        def f(i, tight, mask, hasDup):
+            if i >= N:
+                if hasDup:
+                    return 1
+                return 0
+            upperLimit = A[i] if tight else 9
+            ans = 0
+            for d in range(upperLimit + 1):
+                tight2 = tight and d == upperLimit
+                mask2 = mask if mask == 0 and d == 0 else mask | (1 << d)
+                hasDup2 = hasDup or (mask & (1 << d))
+                ans += f(i + 1, tight2, mask2, hasDup2)
+            return ans
+        return f(0, True, 0, False)
+
+作者：LeetCode-Solution
+链接：https://leetcode.cn/problems/numbers-with-repeated-digits/solution/zhi-shao-you-1-wei-zhong-fu-de-shu-zi-by-0mvu/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
 ```
 
 下面是我的写法
