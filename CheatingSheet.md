@@ -1079,6 +1079,36 @@ class Solution:
                     lcp[i][j] = lcp[i + 1][j + 1] + 1
 ```
 
+## 两个字符串的最长子序列，并求出这个子序列。
+
+```python
+        m, n = len(str1), len(str2)
+        dp = [[0] * (n + 1) for _ in range(m + 1)]
+        f = [[""] * (n + 1) for _ in range(m + 1)]
+        for i in range(m):
+            for j in range(n):
+                if str1[i] == str2[j]:
+                    dp[i + 1][j  +1] = dp[i][j] + 1
+                else:
+                    dp[i + 1][j  +1] = max(dp[i+1][j], dp[i][j+1])
+        # print(dp)
+        rs = ""
+        i, j = m - 1, n - 1
+        while i >= 0 and j >= 0:
+            # print(i, j)
+            if str1[i] == str2[j]:
+                rs += str1[i]
+                i -= 1
+                j -= 1
+            else:
+                if dp[i + 1][j] > dp[i][j + 1]:
+                    j -= 1
+                else:
+                    i -= 1
+        ans = rs[::-1]
+        
+# https://leetcode.cn/submissions/detail/418646702/
+```
 
 ## 使用广搜将无向树 变成 有向生成树，这样可以用direction数据来dfs，不在需要visit set。
 ```python
