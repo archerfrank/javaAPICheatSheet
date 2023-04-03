@@ -1432,3 +1432,21 @@ class Solution:
 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
 
 ```
+
+## 子数组翻转下标
+
+对于子数组 [L,R] 中的任意下标 i，翻转后的下标是 L+R-i（中心对称翻转，两个下标相加恒等于 L+R）。
+
+如果 i 在数组左边界 0 附近，那么翻转时会受到数组左边界的约束，当子数组在最左边时，L=0,R=k-1，i 翻转后是 0+(k-1)-i=k-i-1，所以小于 k-i-1 的点是无法翻转到的；
+如果 i 在数组右边界 n-1 附近，那么翻转时会受到数组右边界的约束，当子数组在最右边时，L=n-k,R=n-1，i 翻转后是 (n-k)+(n-1) - i=2n - k - i - 1，所以大于 2n - k - i - 1 的点是无法翻转到的。
+
+所以实际范围为
+
+**[max(i−k+1,k−i−1),min(i+k−1,2n−k−i−1)]**
+
+作者：endlesscheng
+链接：https://leetcode.cn/problems/minimum-reverse-operations/solution/liang-chong-zuo-fa-ping-heng-shu-bing-ch-vr0z/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+
+
