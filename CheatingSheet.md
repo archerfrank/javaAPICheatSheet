@@ -1449,4 +1449,17 @@ class Solution:
 来源：力扣（LeetCode）
 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
 
+## 集合论与位运算
 
+本题中用到的位运算技巧：
+
+将元素 xx 变成集合 {x}，即 1 << x。
+判断元素 x 是否在集合 A 中，即 ((A >> x) & 1) == 1。
+计算两个集合 A,B 的并集 A\cap BA∩B，即 A | B。例如 110 | 11 = 111。
+计算 A \setminus BA∖B，表示从集合 AA 中去掉在集合 BB 中的元素，即 A & ~B。例如 110 & ~11 = 100。
+全集 U=\{0,1,\cdots,n-1\}U={0,1,⋯,n−1}，即 (1 << n) - 1。
+
+作者：endlesscheng
+链接：https://leetcode.cn/problems/smallest-sufficient-team/solution/zhuang-ya-0-1-bei-bao-cha-biao-fa-vs-shu-qode/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
