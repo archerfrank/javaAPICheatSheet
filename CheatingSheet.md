@@ -345,7 +345,42 @@ class BIT:
                         cost[child[0]] = v[0] + child[1]
                         heapq.heappush(q, (cost[child[0]], child[0]))
 ```
-### GCD
+
+SPFA
+
+https://oi-wiki.org/graph/shortest-path/#%E9%98%9F%E5%88%97%E4%BC%98%E5%8C%96spfa
+
+```python
+
+class Edge:
+    v = 0
+    w = 0
+
+e = [[Edge() for i in range(maxn)] for j in range(maxn)]
+dis = [63] * maxn; cnt = [] * maxn; vis = [] * maxn
+
+q = []
+def spfa(n, s):
+    dis[s] = 0
+    vis[s] = 1
+    q.append(s)
+    while len(q) != 0:
+        u = q[0]
+        vis[u] = 0
+        q.pop()
+        for ed in e[u]:
+            if dis[v] > dis[u] + w:
+                dis[v] = dis[u] + w
+                cnt[v] = cnt[u] + 1 # 记录最短路经过的边数
+                if cnt[v] >= n:
+                    return False
+                # 在不经过负环的情况下，最短路至多经过 n - 1 条边
+                # 因此如果经过了多于 n 条边，一定说明经过了负环
+                if vis[v] == False:
+                    q.append(v)
+                    vis[v] = True
+```
+## GCD
 
 ```java
     private static int gcd(int a, int b) {
@@ -356,7 +391,7 @@ class BIT:
     }
 ```
 
-### DP 状态压缩法
+## DP 状态压缩法
 ```python
         n = len(nums1)
         f = [float("inf")] * (1 << n)
@@ -374,7 +409,8 @@ class BIT:
 链接：https://leetcode-cn.com/problems/minimum-xor-sum-of-two-arrays/solution/liang-ge-shu-zu-zui-xiao-de-yi-huo-zhi-z-2uye/
 来源：力扣（LeetCode）
 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
-### Fast Power
+
+## Fast Power
 
 
 
@@ -391,7 +427,7 @@ class BIT:
             return res % mod
 ```
 
-### Mask Iteration
+## Mask Iteration
 
 ```python
     mask = 15
@@ -405,7 +441,7 @@ https://leetcode.cn/problems/triples-with-bitwise-and-equal-to-zero/solution/li-
 
 
 
-### Tries XOR
+## Tries XOR
 ```python
 class Node:
     def __init__(self, val):
@@ -1454,12 +1490,68 @@ class Solution:
 本题中用到的位运算技巧：
 
 将元素 xx 变成集合 {x}，即 1 << x。
+
 判断元素 x 是否在集合 A 中，即 ((A >> x) & 1) == 1。
-计算两个集合 A,B 的并集 A\cap BA∩B，即 A | B。例如 110 | 11 = 111。
-计算 A \setminus BA∖B，表示从集合 AA 中去掉在集合 BB 中的元素，即 A & ~B。例如 110 & ~11 = 100。
-全集 U=\{0,1,\cdots,n-1\}U={0,1,⋯,n−1}，即 (1 << n) - 1。
+
+计算两个集合 A,B 的并集 A∩B，即 A | B。例如 110 | 11 = 111。
+
+**计算 A-B**，表示从集合 A 中去掉在集合 B 中的元素，即 **A & ~B**。例如 110 & ~11 = 100。
+也可以是用 **(A^B|A) - B**.
+
+全集 U={0,1,⋯,n−1}，即 (1 << n) - 1。
 
 作者：endlesscheng
 链接：https://leetcode.cn/problems/smallest-sufficient-team/solution/zhuang-ya-0-1-bei-bao-cha-biao-fa-vs-shu-qode/
 来源：力扣（LeetCode）
 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+
+## Tarjan 树公共祖先
+下面这道题除了寻找公共祖先，还要用上树上差分算法。
+```python
+        g = [[] for _ in range(n)]
+        for x, y in edges:
+            g[x].append(y)
+            g[y].append(x)  # 建树
+
+        qs = [[] for _ in range(n)] #对于节点s，需要查询和节点e的公共祖先。
+        for s, e in trips:
+            qs[s].append(e)  # 路径端点分组
+            if s != e:
+                qs[e].append(s)
+
+        # 并查集模板
+        pa = list(range(n))
+        def find(x: int) -> int:
+            if x != pa[x]:
+                pa[x] = find(pa[x])
+            return pa[x]
+
+        diff = [0] * n
+        father = [0] * n
+        color = [0] * n
+        def tarjan(x: int, fa: int) -> None:
+            father[x] = fa
+            color[x] = 1  # 递归中
+            for y in g[x]:
+                if color[y] == 0:  # 未递归
+                    tarjan(y, x)
+                    pa[y] = x  # 相当于把 y 的子树节点全部 merge 到 x
+            for y in qs[x]:
+                # color[y] == 2 意味着 y 所在子树已经遍历完
+                # 也就意味着 y 已经 merge 到它和 x 的 lca 上了
+                # 这里也就是要更新节点x和y的最近公共祖先。
+                if y == x or color[y] == 2:  # 从 y 向上到达 lca 然后拐弯向下到达 x
+                    diff[x] += 1
+                    diff[y] += 1
+                    lca = find(y) #找到公共祖先。
+                    diff[lca] -= 1
+                    if father[lca] >= 0:
+                        diff[father[lca]] -= 1
+            color[x] = 2  # 递归结束
+        tarjan(0, -1)
+
+作者：endlesscheng
+链接：https://leetcode.cn/problems/minimize-the-total-price-of-the-trips/solution/lei-si-da-jia-jie-she-iii-pythonjavacgo-4k3wq/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+```
