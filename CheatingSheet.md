@@ -1555,3 +1555,99 @@ class Solution:
 来源：力扣（LeetCode）
 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
 ```
+
+## 结合律操作， 或， gcd
+
+操作符合结合律，并且每次结合之后都是继续保持单调递增或者递减。然后求全部子数组中结果等于某个值k或者不同结果的数量，或者等于k的个数，最大最小长度等等，可以使用这个方法。
+```python
+class Solution:
+    def smallestSubarrays(self, nums: List[int]) -> List[int]:
+        n = len(nums)
+        ans = [0] * n
+        ors = []  # 按位或的值 + 对应子数组的右端点的最小值
+        for i in range(n - 1, -1, -1):
+            num = nums[i]
+            ors.append([0, i])
+            k = 0
+            for p in ors:
+                p[0] |= num
+                if ors[k][0] == p[0]:
+                    ors[k][1] = p[1]  # 合并相同值，下标取最小的
+                else:
+                    k += 1
+                    ors[k] = p
+            del ors[k + 1:]
+            # 本题只用到了 ors[0]，如果题目改成任意给定数值，可以在 ors 中查找
+            ans[i] = ors[0][1] - i + 1
+        return ans
+
+作者：endlesscheng
+链接：https://leetcode.cn/problems/smallest-subarrays-with-maximum-bitwise-or/solution/by-endlesscheng-zai1/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+
+
+
+#求不同或值的个数。
+class Solution:
+    def subarrayBitwiseORs(self, arr: List[int]) -> int:
+        n = len(arr)
+        ors = []  # 按位或的值 + 对应子数组的右端点的最小值
+        ans = set()
+        for i in range(n):
+            num = arr[i]
+            ors.append([num, i])
+            k = 0
+            for p in ors:
+                p[0] |= num
+                ans.add(p[0])
+                if ors[k][0] == p[0]:
+                    ors[k][1] = p[1]  # 合并相同值，下标取最小的
+                else:
+                    k += 1
+                    ors[k] = p
+            del ors[k + 1:]
+            # print(num, ors, ans)
+            # 本题只用到了 ors[0]，如果题目改成任意给定数值，可以在 ors 中查找
+            
+        return len(ans)
+
+https://leetcode.cn/submissions/detail/427440342/ 
+
+
+#gcd相关的。
+class Solution:
+    def minOperations(self, nums: List[int]) -> int:
+        if gcd(*nums) > 1:
+            return -1
+        n = len(nums)
+        cnt1 = sum(x == 1 for x in nums)
+        if cnt1:
+            return n - cnt1
+
+        min_size = n
+        a = []  # [GCD，相同 GCD 闭区间的右端点]
+        for i, x in enumerate(nums):
+            a.append([x, i])
+
+            # 原地去重，因为相同的 GCD 都相邻在一起
+            j = 0
+            for p in a:
+                p[0] = gcd(p[0], x)
+                if a[j][0] != p[0]:
+                    j += 1
+                    a[j] = p
+                else:
+                    a[j][1] = p[1]
+            del a[j + 1:]
+
+            if a[0][0] == 1:
+                # 这里本来是 i-a[0][1]+1，把 +1 提出来合并到 return 中
+                min_size = min(min_size, i - a[0][1])
+        return min_size + n - 1
+
+作者：endlesscheng
+链接：https://leetcode.cn/problems/minimum-number-of-operations-to-make-all-array-elements-equal-to-1/solution/liang-chong-fang-fa-bao-li-mei-ju-li-yon-refp/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+```
