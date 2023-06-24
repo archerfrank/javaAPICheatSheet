@@ -1487,6 +1487,10 @@ class Solution:
 
 ## 集合论与位运算
 
+https://leetcode.cn/circle/discuss/CaOJ45/
+
+
+
 本题中用到的位运算技巧：
 
 将元素 xx 变成集合 {x}，即 1 << x。
