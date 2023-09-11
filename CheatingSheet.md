@@ -1487,6 +1487,10 @@ class Solution:
 
 ## 集合论与位运算
 
+https://leetcode.cn/circle/discuss/CaOJ45/
+
+
+
 本题中用到的位运算技巧：
 
 将元素 xx 变成集合 {x}，即 1 << x。
@@ -1554,7 +1558,53 @@ class Solution:
 链接：https://leetcode.cn/problems/minimize-the-total-price-of-the-trips/solution/lei-si-da-jia-jie-she-iii-pythonjavacgo-4k3wq/
 来源：力扣（LeetCode）
 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+
 ```
+
+
+
+下面是模板
+
+```python
+        g = [[] for _ in range(n)]
+        for x, y in edges:
+            g[x].append(y)
+            g[y].append(x)  # 建树
+
+        # 并查集模板
+        pa = list(range(n))
+        def find(x: int) -> int:
+            if x != pa[x]:
+                pa[x] = find(pa[x])
+            return pa[x]
+
+        color = [0] * n
+        def tarjan(x: int, fa: int) -> None:
+            father[x] = fa
+            color[x] = 1  # 递归中
+            for y in g[x]:
+                if color[y] == 0:  # 未递归
+                    tarjan(y, x)
+                    pa[y] = x  # 相当于把 y 的子树节点全部 merge 到 x
+            for y in qs[x]:
+                # color[y] == 2 意味着 y 所在子树已经遍历完
+                # 也就意味着 y 已经 merge 到它和 x 的 lca 上了
+                # 这里也就是要更新节点x和y的最近公共祖先。
+                if y == x or color[y] == 2:  # 从 y 向上到达 lca 然后拐弯向下到达 x
+                    lca = find(y) #找到公共祖先。lca为x和y的公共祖先。
+                    ########这里之后放找到两个节点的公共祖先后的处理逻辑。两个节点只会找到一次祖先。
+            color[x] = 2  # 递归结束
+        tarjan(0, -1)
+
+作者：endlesscheng
+链接：https://leetcode.cn/problems/minimize-the-total-price-of-the-trips/solution/lei-si-da-jia-jie-she-iii-pythonjavacgo-4k3wq/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+```
+
+
+
+
 
 ## 结合律操作， 或， gcd
 
@@ -1654,6 +1704,7 @@ class Solution:
 
 
 
+
 ## 树上倍增法
 
 Binary Lifting 的本质其实是 dp。dp[node][j] 存储的是 node 节点距离为 2^j 的祖先是谁。
@@ -1713,7 +1764,7 @@ class TreeAncestor:
         n = len(edges) + 1
         m = n.bit_length()
         g = [[] for _ in range(n)]
-        for x, y in edges:  # 节点编号从 0 开始
+        for x, y in edges:  # 节点编号从 0 开始，默认传入的是无向图。
             g[x].append(y)
             g[y].append(x)
 
@@ -1725,7 +1776,7 @@ class TreeAncestor:
                 if y != fa:
                     depth[y] = depth[x] + 1
                     dfs(y, x)
-        dfs(0, -1)
+        dfs(0, -1)  # 以第0个节点为root，这里可以根据题意修改。
 
         for i in range(m - 1):
             for x in range(n):
@@ -1759,4 +1810,13 @@ class TreeAncestor:
 来源：力扣（LeetCode）
 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
 ```
+
+
+## 组合数
+
+```python
+def C(m,n):
+    return comb(m,n)%MOD
+```
+
 
