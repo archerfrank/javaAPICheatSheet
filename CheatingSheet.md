@@ -1558,7 +1558,53 @@ https://leetcode.cn/circle/discuss/CaOJ45/
 链接：https://leetcode.cn/problems/minimize-the-total-price-of-the-trips/solution/lei-si-da-jia-jie-she-iii-pythonjavacgo-4k3wq/
 来源：力扣（LeetCode）
 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+
 ```
+
+
+
+下面是模板
+
+```python
+        g = [[] for _ in range(n)]
+        for x, y in edges:
+            g[x].append(y)
+            g[y].append(x)  # 建树
+
+        # 并查集模板
+        pa = list(range(n))
+        def find(x: int) -> int:
+            if x != pa[x]:
+                pa[x] = find(pa[x])
+            return pa[x]
+
+        color = [0] * n
+        def tarjan(x: int, fa: int) -> None:
+            father[x] = fa
+            color[x] = 1  # 递归中
+            for y in g[x]:
+                if color[y] == 0:  # 未递归
+                    tarjan(y, x)
+                    pa[y] = x  # 相当于把 y 的子树节点全部 merge 到 x
+            for y in qs[x]:
+                # color[y] == 2 意味着 y 所在子树已经遍历完
+                # 也就意味着 y 已经 merge 到它和 x 的 lca 上了
+                # 这里也就是要更新节点x和y的最近公共祖先。
+                if y == x or color[y] == 2:  # 从 y 向上到达 lca 然后拐弯向下到达 x
+                    lca = find(y) #找到公共祖先。lca为x和y的公共祖先。
+                    ########这里之后放找到两个节点的公共祖先后的处理逻辑。两个节点只会找到一次祖先。
+            color[x] = 2  # 递归结束
+        tarjan(0, -1)
+
+作者：endlesscheng
+链接：https://leetcode.cn/problems/minimize-the-total-price-of-the-trips/solution/lei-si-da-jia-jie-she-iii-pythonjavacgo-4k3wq/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+```
+
+
+
+
 
 ## 结合律操作， 或， gcd
 
@@ -1656,9 +1702,121 @@ class Solution:
 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
 ```
 
+
+
+
+## 树上倍增法
+
+Binary Lifting 的本质其实是 dp。dp[node][j] 存储的是 node 节点距离为 2^j 的祖先是谁。
+
+根据定义，dp[node][0] 就是 parent[node]，即 node 的距离为 1 的祖先是 parent[node]。
+
+状态转移是： dp[node][j] = dp[dp[node][j - 1]][j - 1]。
+
+意思是：要想找到 node 的距离 2^j 的祖先，先找到 node 的距离 2^(j - 1) 的祖先，然后，再找这个祖先的距离 2^(j - 1) 的祖先。两步得到 node 的距离为 2^j 的祖先。
+
+所以，我们要找到每一个 node 的距离为 1, 2, 4, 8, 16, 32, ... 的祖先，直到达到树的最大的高度。树的最大的高度是 logn 级别的。
+
+作者：liuyubobobo
+链接：https://leetcode.cn/problems/kth-ancestor-of-a-tree-node/solution/li-kou-zai-zhu-jian-ba-acm-mo-ban-ti-ban-shang-lai/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+
+```python
+class TreeAncestor:
+    def __init__(self, n: int, parent: List[int]):
+        m = n.bit_length() - 1
+        pa = [[p] + [-1] * m for p in parent]
+        for i in range(m):
+            for x in range(n):
+                if (p := pa[x][i]) != -1:
+                    pa[x][i + 1] = pa[p][i]
+        self.pa = pa
+
+    def getKthAncestor(self, node: int, k: int) -> int:
+        for i in range(k.bit_length()):
+            if (k >> i) & 1:  # k 的二进制从低到高第 i 位是 1
+                node = self.pa[node][i]
+                if node < 0: break
+        return node
+
+    # 另一种写法，不断去掉 k 的最低位的 1
+    def getKthAncestor2(self, node: int, k: int) -> int:
+        while k and node != -1:  # 也可以写成 ~node
+            lb = k & -k
+            node = self.pa[node][lb.bit_length() - 1]
+            k ^= lb
+        return node
+
+作者：endlesscheng
+链接：https://leetcode.cn/problems/kth-ancestor-of-a-tree-node/solution/mo-ban-jiang-jie-shu-shang-bei-zeng-suan-v3rw/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+```
+
+
+
+下面是使用树上倍增法求树上任意两点的最近公共祖先。
+
+```python
+class TreeAncestor:
+    def __init__(self, edges: List[List[int]]):
+        n = len(edges) + 1
+        m = n.bit_length()
+        g = [[] for _ in range(n)]
+        for x, y in edges:  # 节点编号从 0 开始，默认传入的是无向图。
+            g[x].append(y)
+            g[y].append(x)
+
+        depth = [0] * n
+        pa = [[-1] * m for _ in range(n)]
+        def dfs(x: int, fa: int) -> None:
+            pa[x][0] = fa
+            for y in g[x]:
+                if y != fa:
+                    depth[y] = depth[x] + 1
+                    dfs(y, x)
+        dfs(0, -1)  # 以第0个节点为root，这里可以根据题意修改。
+
+        for i in range(m - 1):
+            for x in range(n):
+                if (p := pa[x][i]) != -1:
+                    pa[x][i + 1] = pa[p][i]
+        self.depth = depth
+        self.pa = pa
+
+    def get_kth_ancestor(self, node: int, k: int) -> int:
+        for i in range(k.bit_length()):
+            if (k >> i) & 1:  # k 二进制从低到高第 i 位是 1
+                node = self.pa[node][i]
+        return node
+
+    # 返回 x 和 y 的最近公共祖先（节点编号从 0 开始）
+    def get_lca(self, x: int, y: int) -> int:
+        if self.depth[x] > self.depth[y]:
+            x, y = y, x
+        # 使 y 和 x 在同一深度
+        y = self.get_kth_ancestor(y, self.depth[y] - self.depth[x])
+        if y == x:
+            return x
+        for i in range(len(self.pa[x]) - 1, -1, -1):
+            px, py = self.pa[x][i], self.pa[y][i]
+            if px != py:
+                x, y = px, py  # 同时上跳 2**i 步
+        return self.pa[x][0]
+
+作者：endlesscheng
+链接：https://leetcode.cn/problems/kth-ancestor-of-a-tree-node/solution/mo-ban-jiang-jie-shu-shang-bei-zeng-suan-v3rw/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+```
+
+
 ## 组合数
 
 ```python
 def C(m,n):
     return comb(m,n)%MOD
 ```
+
+
