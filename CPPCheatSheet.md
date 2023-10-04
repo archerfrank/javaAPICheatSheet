@@ -89,8 +89,46 @@ int main()
 
 ```
 
-删除vector 第s个元素
+### 删除vector 第s个元素
+
 ```cpp
 vector<int> g(m, 0);
 g.erase(g.begin()+s);
 ```
+
+
+
+## Set
+
+C++的set是树，所以可以在上面做二分查找，和count。
+
+
+
+
+
+## 字符串 数字 转换
+
+```c++
+#include <iostream>
+#include <string>
+ 
+int main() {
+    int num = 1234;
+    std::string str = std::to_string(num);
+    std::cout << str << std::endl;
+    return 0;
+}
+
+
+
+#include<bits/stdc++.h>
+using namespace std;
+int main(){
+    string str="123";
+    cout<<str<<"    str的类型为"<<typeid(str).name()<<endl;//输出Ss表示string类型
+    //atoi的参数类型为（const char *nptr）而string是一个类，所以需要获取str的首地址即str.c_str()
+    int num=atoi(str.c_str()); 
+    cout<<num<<"    num的类型为"<<typeid(num).name()<<endl;//输出i表示int类型 
+}
+```
+
