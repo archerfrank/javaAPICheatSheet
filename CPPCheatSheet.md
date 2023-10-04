@@ -104,6 +104,71 @@ C++的set是树，所以可以在上面做二分查找，和count。
 
 
 
+```c++
+#include<bits/stdc++.h>
+using namespace std;
+
+int main()
+{
+	set<int> s; 
+	  
+	    // Function to insert elements 
+	    // in the set container 
+	    s.insert(1); 
+	    s.insert(4); 
+	    s.insert(4); 
+	    s.insert(4); 
+	    s.insert(2); 
+	    s.insert(5); 
+	    s.insert(6); 
+	  
+	    cout << "The set elements are: "; 
+	    for (auto it = s.begin(); it != s.end(); it++) 
+	        cout << *it << " "; 
+	  
+	    // when 2 is present 
+	    // points to next element after 2 
+	    auto it = s.upper_bound(2); //第一个大于2的值 
+	    cout << "\nThe upper bound of key 2 is "; 
+	    cout << (*it) << endl; 
+	    
+	    it = s.lower_bound(2); //第一个大于等于2的值 
+	    cout << "\nThe lower bound of key 2 is "; 
+	    cout << (*it) << endl; 
+	  
+	    // when 3 is not present 
+	    // points to next greater after 3 
+	    it = s.upper_bound(3); 
+	    cout << "The upper bound of key 3 is "; 
+	    cout << (*it) << endl; 
+	    
+	    int key = 8; 
+	    it = s.upper_bound(key); 
+	    if (it == s.end()) 
+	        cout << "The given key is greater "
+	                "than or equal to the largest element \n"; 
+	    else
+	        cout << "The immediate greater element "
+	             << "is " << *it << endl; 
+	  
+	    key = 3; 
+	    it = s.upper_bound(key); 
+	    if (it == s.end()) 
+	        cout << "The given key is greater "
+	                "than or equal to the largest element \n"; 
+	    else
+	        cout << "The immediate greater element "
+	             << "is " << *it << endl; 
+	  
+	  	cout<<s.count(4)<<endl;
+	    return 0; 
+}
+```
+
+
+
+
+
 
 
 ## 字符串 数字 转换
@@ -130,5 +195,11 @@ int main(){
     int num=atoi(str.c_str()); 
     cout<<num<<"    num的类型为"<<typeid(num).name()<<endl;//输出i表示int类型 
 }
+
+
+string b = "adcdad";
+string c = b;
+sort(c.begin(), c.end());
+cout<<b<<" "<<c<<endl; // c 被排序，但是b还是原来的。
 ```
 
