@@ -1820,3 +1820,11 @@ def C(m,n):
 ```
 
 
+## 动态规划
+有时可以使用线段树，前缀和来优化。
+比如，下面两个都是使用前缀和优化的例子。
+
+https://leetcode.cn/problems/number-of-dice-rolls-with-target-sum/solutions/2495836/ji-bai-100cong-ji-yi-hua-sou-suo-dao-di-421ab/?envType=daily-question&envId=2023-10-24
+
+https://leetcode.cn/problems/count-of-sub-multisets-with-bounded-sum/description/
+
