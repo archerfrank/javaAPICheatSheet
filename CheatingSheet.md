@@ -533,7 +533,7 @@ class Solution:
         t = Node(0)
         ans = 0
         for x in nums:
-            t.add(x)
+            t.add(x)  ### 必须要添加一个数，然后才能查询，不然就会报错。
             ans += t.less(x, high + 1) - t.less(x, low)
         return ans 	
   
