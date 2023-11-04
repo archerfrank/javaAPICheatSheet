@@ -641,6 +641,9 @@ public class SegmentTreeDynamic {
     }
 }
 ```
+另外一个区间增，然后求和的的板子。
+
+https://leetcode.cn/problems/subarrays-distinct-element-sum-of-squares-ii/solutions/2504870/javaqu-jian-zeng-ban-zi-by-topcloser-j1qq/
 
 
 
