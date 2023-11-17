@@ -268,7 +268,7 @@ class BIT {
 class BIT:
     def __init__(self, nums: List[int]):
         self.sum = [0] * (len(nums) + 1)
-        self.n = len(nums)
+        self.n = len(nums) # 这里和上面差1.
         for i in range(len(nums)):
             self.update(i, 0, nums[i])
     #[i,j]全包含查询
@@ -290,6 +290,31 @@ class BIT:
             ans += self.sum[pos]
             pos -= self.lowbit(pos)
         return ans
+ 
+#如果求区间的最大或者最小值，就是能添加，没有办法修改了。可以参考下面的例子。
+
+ https://leetcode.cn/problems/maximum-sum-queries/submissions/482815165/?envType=daily-question&envId=2023-11-17
+#求区间的最大值。
+class BIT:
+    def __init__(self, n: int):
+        self.sum = [-1] * (n + 1)
+        self.n = n
+
+    def lowbit(self, i: int) -> int:
+        return i & (-i)
+
+    def add(self, pos:int, newValue:int):
+        while pos <= self.n:
+            self.sum[pos] = max(newValue, self.sum[pos])
+            pos += self.lowbit(pos)
+
+    def query(self, pos:int) -> int:
+        ans = -1
+        while pos > 0:
+            ans = max(ans, self.sum[pos])
+            pos -= self.lowbit(pos)
+        return ans
+   
 ```
 
 ## LRU Cache
