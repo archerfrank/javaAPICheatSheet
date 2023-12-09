@@ -334,11 +334,12 @@ class BIT:
 ## 最短路径 shortest path  dijkstra
 
 ```python
-		adj = defaultdict(list)
+
+        adj = defaultdict(list)
         for x, y,w in edges:
             adj[x].append((y, w))
             adj[y].append((x, w))
-        q = [(0, n)]
+        q = [(0, n)] # 这个题是计算从n这个节点开始到其他节点的最短路径。如果是其他节点开始，可以修改这个n。
         cost = [inf] * (n+1)
         cost[n] = 0
         while q:
@@ -357,7 +358,7 @@ class BIT:
         for x, y,w in edges:
             adj[x].append((y, w))
             adj[y].append((x, w))
-        q = [(0, n)]
+        q = [(0, n)] # 这个题是计算从n这个节点开始到其他节点的最短路径。如果是其他节点开始，可以修改这个n。
         cost = [inf] * (n+1)
         cost[n] = 0
         visit = [0] * n
