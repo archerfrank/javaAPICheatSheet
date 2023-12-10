@@ -372,7 +372,7 @@ class BIT:
                         heapq.heappush(q, (cost[child[0]], child[0]))
 ```
 
-SPFA
+### SPFA
 
 https://oi-wiki.org/graph/shortest-path/#%E9%98%9F%E5%88%97%E4%BC%98%E5%8C%96spfa
 
@@ -405,6 +405,29 @@ def spfa(n, s):
                 if vis[v] == False:
                     q.append(v)
                     vis[v] = True
+```
+
+### Floyd
+
+https://leetcode.cn/problems/number-of-possible-sets-of-closing-branches/solutions/2560722/er-jin-zhi-mei-ju-floydgao-xiao-xie-fa-f-t7ou/
+
+```python
+            dist = [[inf for j in range(n)] for i in range(n)]
+            for j in range(n):
+                dist[j][j]=0
+            for x,y,d in roads: # 注意题目给的是无向图 (x, y, d) x和y的路径是d
+                dist[x][y]=min(dist[x][y],d)
+                dist[y][x]=min(dist[y][x],d)
+            for z in range(n):
+                for x in range(n):
+                    for y in range(n):
+                        dist[x][y]=min(dist[x][y],dist[x][z]+dist[z][y])
+
+作者：Carl_Czerny
+链接：https://leetcode.cn/problems/number-of-possible-sets-of-closing-branches/solutions/2560876/geng-kuai-de-20msdong-tai-gui-hua-o2nn2j-ucyj/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+
 ```
 ## GCD
 
