@@ -867,6 +867,36 @@ for x1, y1, x2, y2 in calcs:
 
 ```
 
+## 二维差分和使用
+
+```python
+        m, n = len(grid), len(grid[0])
+        s = [[0] * (n + 1) for _ in range(m + 1)]
+        # 2. 计算二维差分
+        # 为方便第 3 步的计算，在 d 数组的最上面和最左边各加了一行（列），所以下标要 +1
+        d = [[0] * (n + 2) for _ in range(m + 2)]
+        for i2 in range(stampHeight, m + 1):
+            for j2 in range(stampWidth, n + 1):
+                i1 = i2 - stampHeight + 1
+                j1 = j2 - stampWidth + 1
+                if s[i2][j2] - s[i2][j1 - 1] - s[i1 - 1][j2] + s[i1 - 1][j1 - 1] == 0:
+                    d[i1][j1] += 1
+                    d[i1][j2 + 1] -= 1
+                    d[i2 + 1][j1] -= 1
+                    d[i2 + 1][j2 + 1] += 1
+
+        # 3. 还原二维差分矩阵对应的计数矩阵（原地计算）
+        for i, row in enumerate(grid):
+            for j, v in enumerate(row):
+                d[i + 1][j + 1] += d[i + 1][j] + d[i][j + 1] - d[i][j]
+
+
+作者：灵茶山艾府
+链接：https://leetcode.cn/problems/stamping-the-grid/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+
+```
 
 
 ## 双向链表
@@ -1877,3 +1907,44 @@ https://leetcode.cn/problems/number-of-dice-rolls-with-target-sum/solutions/2495
 
 https://leetcode.cn/problems/count-of-sub-multisets-with-bounded-sum/description/
 
+
+## 合并区间代码
+
+log(n) 复杂度
+
+https://leetcode.cn/problems/count-integers-in-intervals/submissions/314289002/?envType=daily-question&envId=2023-12-16
+
+```python
+              import sortedcontainers
+
+class CountIntervals:
+
+    def __init__(self):
+        self.sl = sortedcontainers.SortedList()
+        self.ans = 0
+
+    def add(self, left: int, right: int) -> None:
+        cur = [left, right]
+        idx = self.sl.bisect(cur)
+        idx = idx - 1
+        if idx < 0:
+            idx = 0
+        n = len(self.sl)
+        while idx < len(self.sl) and self.sl[idx][0] <= cur[1]:
+            if self.sl[idx][1] < cur[0]:
+                idx += 1
+            else:
+                l, r = self.sl[idx]
+                L = min(l, cur[0])
+                R = max(r, cur[1])
+                cur = [L, R]
+                self.sl.pop(idx)  #有交集的就去掉
+                self.ans -= r - l + 1  #也要把对那个的cnt减掉,这句和下面一句代码是题目2276的要求，可以根据题的意思修改
+        self.ans += cur[1] - cur[0] + 1 #加入新的区间和cnt,这句和上面一句代码是题目2276的要求，可以根据题的意思修改
+        self.sl.add(cur)
+        # print(self.sl, self.ans)
+
+
+
+                  
+```
