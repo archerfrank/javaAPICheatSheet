@@ -1948,3 +1948,19 @@ class CountIntervals:
 
                   
 ```
+
+
+## 求解数组前k大的子序列的和
+
+https://leetcode.cn/problems/find-the-k-sum-of-an-array/?envType=daily-question&envId=2024-03-09
+
+```python
+        arr.sort()
+        q = [(arr[0], 0)]
+        val = 0
+        for i in range(k - 1):
+            val, idx = heapq.heappop(q)
+            if idx != len(arr) - 1:
+                heapq.heappush(q, (val + arr[idx + 1], idx + 1))
+                heapq.heappush(q, (val - arr[idx] + arr[idx + 1], idx + 1))
+```
