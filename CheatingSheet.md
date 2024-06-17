@@ -290,6 +290,8 @@ class BIT:
             ans += self.sum[pos]
             pos -= self.lowbit(pos)
         return ans
+ # https://leetcode.cn/problems/peaks-in-array/
+
  
 #如果求区间的最大或者最小值，就是能添加，没有办法修改了。可以参考下面的例子。
 
