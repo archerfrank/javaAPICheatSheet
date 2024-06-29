@@ -1984,3 +1984,31 @@ class Solution:
 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
 
 ```
+
+## 欧拉回路， 一笔画
+
+```python
+class Solution:
+    def findItinerary(self, tickets: List[List[str]]) -> List[str]:
+        def dfs(curr: str):
+            while vec[curr]:
+                tmp = heapq.heappop(vec[curr])
+                dfs(tmp)
+            stack.append(curr)
+
+        vec = collections.defaultdict(list)
+        for depart, arrive in tickets:
+            vec[depart].append(arrive)
+        for key in vec:
+            heapq.heapify(vec[key])
+        
+        stack = list()
+        dfs("JFK")
+        return stack[::-1]
+
+作者：力扣官方题解
+链接：https://leetcode.cn/problems/reconstruct-itinerary/solutions/389885/zhong-xin-an-pai-xing-cheng-by-leetcode-solution/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+
+```
