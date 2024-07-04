@@ -855,6 +855,11 @@ def check(self, arr, m, a1, a2, mod1, mod2):
         return -1
 
 ```
+## 前缀和
+
+```python
+pre_sum = list(accumulate(pos, initial=0))
+```
 
 ## 二维前缀和使用
 每个方向要多一排的0，和一维类似，都要多一个0.
