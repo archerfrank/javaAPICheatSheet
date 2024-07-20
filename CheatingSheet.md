@@ -855,6 +855,11 @@ def check(self, arr, m, a1, a2, mod1, mod2):
         return -1
 
 ```
+
+字符串hash的前缀和使用。
+https://leetcode.cn/problems/construct-string-with-minimum-cost/solutions/2833949/hou-zhui-shu-zu-by-endlesscheng-32h9/
+
+
 ## 前缀和
 
 ```python
@@ -2017,3 +2022,44 @@ class Solution:
 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
 
 ```
+
+## 子数组个数和logTrick and or gcd
+https://leetcode.cn/problems/find-subarray-with-bitwise-or-closest-to-k/solutions/2798206/li-yong-and-de-xing-zhi-pythonjavacgo-by-gg4d/
+
+数组里面的值nums[j] 就相当于从nums[j] ~ nums[i]的或的值。
+```python
+for i, x in enumerate(nums):
+    while j >= 0 and nums[j] | x != nums[j]:
+        nums[j] |= x
+        j -= 1
+
+
+下面的写法也可以。
+
+for i, x in enumerate(nums):
+    for j in range(i - 1, -1, -1):
+        if nums[j] & x == nums[j]:
+            break
+        nums[j] &= x
+
+作者：灵茶山艾府
+链接：https://leetcode.cn/problems/number-of-subarrays-with-and-value-of-k/solutions/2833497/jian-ji-xie-fa-o1-kong-jian-pythonjavacg-u7fv/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+
+
+```
+
+## 旋转矩阵
+
+```
+ # 顺时针旋转矩阵 90°
+    def rotate(self, a: List[List[int]]) -> List[List[int]]:
+        return list(zip(*reversed(a)))
+
+作者：灵茶山艾府
+链接：https://leetcode.cn/problems/find-the-minimum-area-to-cover-all-ones-ii/solutions/2819357/mei-ju-pythonjavacgo-by-endlesscheng-uu5p/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+```
+
