@@ -881,6 +881,11 @@ for x1, y1, x2, y2 in calcs:
 
 ## 二维差分和使用
 
+一维差分使用
+https://leetcode.cn/problems/car-pooling/solutions/2550264/suan-fa-xiao-ke-tang-chai-fen-shu-zu-fu-9d4ra/
+
+
+
 ```python
         m, n = len(grid), len(grid[0])
         s = [[0] * (n + 1) for _ in range(m + 1)]
