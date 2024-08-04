@@ -2068,3 +2068,9 @@ for i, x in enumerate(nums):
 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
 ```
 
+## 换根dp
+
+有时候需要维护换根后和father 节点的状态。下面的例子就是维护每个节点的最大和第二大的子结果，来完成换根。
+每个节点的最大值，就是max(当前节点的子结果最大值, 到父节点的值)
+https://leetcode.cn/problems/time-taken-to-mark-all-nodes/solutions/2868276/di-er-lei-huan-gen-dppythonjavacgo-by-en-411w/
+
