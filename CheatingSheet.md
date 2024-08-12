@@ -674,6 +674,57 @@ class Trie:
     def isEnd(self):
         return self.cur.end
 ```
+
+可以在Tries上进行DFS,有时候复杂度更低。
+
+
+```python
+class Trie:
+    def __init__(self):
+        self.is_finished = False
+        self.child = dict()
+
+
+class MagicDictionary:
+
+    def __init__(self):
+        self.root = Trie()
+
+    def buildDict(self, dictionary: List[str]) -> None:
+        for word in dictionary:
+            cur = self.root
+            for ch in word:
+                if ch not in cur.child:
+                    cur.child[ch] = Trie()
+                cur = cur.child[ch]
+            cur.is_finished = True
+
+    def search(self, searchWord: str) -> bool:
+        def dfs(node: Trie, pos: int, modified: bool) -> bool:
+            if pos == len(searchWord):
+                return modified and node.is_finished
+            
+            ch = searchWord[pos]
+            if ch in node.child:
+                if dfs(node.child[ch], pos + 1, modified):
+                    return True
+                
+            if not modified:
+                for cnext in node.child:
+                    if ch != cnext:
+                        if dfs(node.child[cnext], pos + 1, True):
+                            return True
+            
+            return False
+        
+        return dfs(self.root, 0, False)
+
+作者：力扣官方题解
+链接：https://leetcode.cn/problems/implement-magic-dictionary/solutions/1656423/shi-xian-yi-ge-mo-fa-zi-dian-by-leetcode-b35s/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+
+```
 ## String Hash and KMP and Z 函数
 
 允许K次失配的字符串匹配
