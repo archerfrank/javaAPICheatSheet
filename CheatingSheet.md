@@ -601,7 +601,7 @@ class TreeNode:
     #     s = ""
     #     for k in self.children:
     #         s += k +":" + str(self.children[k]) + ";"
-        return s + str(self.end)
+        # return s + str(self.end)
 class Tries:
     def __init__ (self):
         self.root = TreeNode()
@@ -673,6 +673,42 @@ class Trie:
 
     def isEnd(self):
         return self.cur.end
+
+
+
+
+
+class Trie:
+    """前缀树模板"""
+    def __init__(self):
+        self.children = dict()
+        self.isEnd = False
+
+
+    def insert(self, word: str) -> None:
+        node = self
+        for s in word:
+            if s not in node.children:
+                node.children[s] = Trie()
+            node = node.children[s]
+        node.isEnd = True
+    
+    def searchPrefix(self, prefix: str) -> 'Trie':
+        node = self
+        for s in prefix:
+            if s not in node.children:
+                return None
+            node = node.children[s]
+        return node
+
+
+    def search(self, word: str) -> bool:
+        node = self.searchPrefix(word)
+        return node is not None and node.isEnd
+
+
+    def startsWith(self, prefix: str) -> bool:
+        return self.searchPrefix(prefix) is not None
 ```
 
 可以在Tries上进行DFS,有时候复杂度更低。
