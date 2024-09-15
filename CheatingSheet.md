@@ -2125,3 +2125,37 @@ for i, x in enumerate(nums):
 每个节点的最大值，就是max(当前节点的子结果最大值, 到父节点的值)
 https://leetcode.cn/problems/time-taken-to-mark-all-nodes/solutions/2868276/di-er-lei-huan-gen-dppythonjavacgo-by-en-411w/
 
+
+# 最长上升子序列 二维
+
+参考
+
+https://leetcode.cn/problems/russian-doll-envelopes/solutions/633231/e-luo-si-tao-wa-xin-feng-wen-ti-by-leetc-wj68/
+
+```
+
+class Solution:
+    def maxEnvelopes(self, envelopes: List[List[int]]) -> int:
+        if not envelopes:
+            return 0
+        
+        n = len(envelopes)
+        envelopes.sort(key=lambda x: (x[0], -x[1]))
+
+        f = [envelopes[0][1]]
+        for i in range(1, n):
+            num = envelopes[i][1]
+            if num > f[-1]:
+                f.append(num)
+            else:
+                index = bisect.bisect_left(f, num)
+                f[index] = num
+        
+        return len(f)
+
+作者：力扣官方题解
+链接：https://leetcode.cn/problems/russian-doll-envelopes/solutions/633231/e-luo-si-tao-wa-xin-feng-wen-ti-by-leetc-wj68/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+
+```
