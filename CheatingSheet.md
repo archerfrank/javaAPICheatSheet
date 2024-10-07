@@ -858,6 +858,65 @@ def check(i, j):
 
 ```
 
+String Hash和Z function的应用。
+
+```python
+RANDOM = random.randint(37, 100)
+
+class StringHash:
+    def __init__(self, s):
+        n = len(s)
+        self.BASE = BASE = 131 + RANDOM  # 进制 131,131313
+        self.MOD = MOD = 10 ** 13 + RANDOM  # 10**9+7,998244353,10**13+7
+        self.h = h = [0] * (n + 1)
+        self.p = p = [1] * (n + 1)
+        for i in range(1, n + 1):
+            p[i] = (p[i - 1] * BASE) % MOD  # Base 
+            h[i] = (h[i - 1] * BASE % MOD + ord(s[i - 1])) % MOD  # Hash
+
+    def get_hash(self, l, r):
+        return (self.h[r] - self.h[l] * self.p[r - l] % self.MOD) % self.MOD
+
+
+class ZFunction:
+
+    def __init__(self, s):
+        n = len(s)
+        self.z = z = [0] * n
+        l, r = 0, 0
+        for i in range(1, n):
+            if i <= r and z[i - l] < r - i + 1:
+                z[i] = z[i - l]
+            else:
+                z[i] = max(0, r - i + 1)
+                while i + z[i] < n and s[z[i]] == s[i + z[i]]:
+                    z[i] += 1
+            if i + z[i] - 1 > r:
+                l = i
+                r = i + z[i] - 1
+
+
+class Solution:
+    def minStartingIndex(self, s: str, pattern: str) -> int:
+        n, m = len(s), len(pattern)
+        ans = inf
+        S = pattern + '#' + s
+        z = ZFunction(S).z
+        sh = StringHash(S)
+
+        for i in range(m + 1, n + m + 1 - m + 1):
+
+            if z[i] >= m - 1:
+                return i - m - 1
+            else:
+                p = z[i]
+                if p == 3:
+                    print(p + 1, m, i + p + 1, i + m)
+                if sh.get_hash(p + 1, m) == sh.get_hash(i + p + 1, i + m):
+                    return i - m - 1
+        return -1
+```
+
 ```java
 int strHash(String ss, String b) {//将要查找的字符串b放到被查找的字符串ss的后面，进行hash
         int P = 131;
