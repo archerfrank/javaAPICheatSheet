@@ -35,6 +35,30 @@ def findSubArray(nums):
 ```
 
 
+## 排序的 Comp 写法。
+
+```python
+
+class Solution:
+    def largestNumber(self, nums: List[int]) -> str:
+        strs = map(str, nums)
+        def cmp(a, b):
+            if a + b == b + a:
+                return 0
+            elif a + b > b + a:
+                return 1
+            else:
+                return -1
+        strs = sorted(strs, key=functools.cmp_to_key(cmp), reverse=True)
+        return ''.join(strs) if strs[0] != '0' else '0'
+
+作者：宫水三叶
+链接：https://leetcode.cn/problems/largest-number/solutions/716725/gong-shui-san-xie-noxiang-xin-ke-xue-xi-vn86e/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+
+```
+
 
 ## Union Find
 ```python
@@ -2078,7 +2102,7 @@ log(n) 复杂度
 https://leetcode.cn/problems/count-integers-in-intervals/submissions/314289002/?envType=daily-question&envId=2023-12-16
 
 ```python
-              import sortedcontainers
+import sortedcontainers
 
 class CountIntervals:
 
@@ -2180,9 +2204,13 @@ https://leetcode.cn/problems/find-subarray-with-bitwise-or-closest-to-k/solution
 数组里面的值nums[j] 就相当于从nums[j] ~ nums[i]的或的值。
 ```python
 for i, x in enumerate(nums):
+    j = i - 1
     while j >= 0 and nums[j] | x != nums[j]:
         nums[j] |= x
         j -= 1
+
+时间复杂度：O(nlogU)，其中 n 是 nums 的长度，U=max(nums)。由于 2^29 −1<10^9 <2^30 −1，二进制数对应集合的大小不会超过 29，因此在 OR 运算下，每个数字至多可以增大 29 次。总体上看，二重循环的总循环次数等于每个数字可以增大的次数之和，即 O(nlogU)。
+
 
 
 下面的写法也可以。
@@ -2216,7 +2244,7 @@ for i, x in enumerate(nums):
 
 ## 换根dp
 
-有时候需要维护换根后和father 节点的状态。下面的例子就是维护每个节点的最大和第二大的子结果，来完成换根。
+有时候需要维护换根后root 和father 节点的状态。下面的例子就是维护每个节点的最大和第二大的子结果，来完成换根。
 每个节点的最大值，就是max(当前节点的子结果最大值, 到父节点的值)
 https://leetcode.cn/problems/time-taken-to-mark-all-nodes/solutions/2868276/di-er-lei-huan-gen-dppythonjavacgo-by-en-411w/
 
