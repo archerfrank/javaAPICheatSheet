@@ -2282,3 +2282,43 @@ class Solution:
 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
 
 ```
+
+
+## 先单调下降，再单调上升的 二分查找。
+
+具体看题解。
+
+https://leetcode.cn/problems/super-egg-drop/solutions/197163/ji-dan-diao-luo-by-leetcode-solution-2/
+
+```python
+class Solution:
+    def superEggDrop(self, k: int, n: int) -> int:
+        f = [i for i in range(n + 1)]
+        # print(f)
+        for i in range(2, k + 1):
+            g = [inf] * (n + 1)
+            g[0] = 0
+            a ,b = 0, 0
+            for j in range(1, n + 1):
+                lo = 1
+                hi = j - 1
+                while lo < hi:
+                    mid = (lo + hi) // 2
+                    if g[mid - 1] < f[j - mid]:
+                        lo = mid + 1
+                    else:
+                        hi = mid
+                g[j] = min(g[j], max(g[lo - 1], f[j - lo]) + 1)
+                if lo > 1:
+                    g[j] = min(g[j], max(g[lo - 2], f[j - lo + 1]) + 1)
+                # for x in range(1, j + 1):
+                #     g[j] = min(g[j], max(g[x - 1], f[j - x]) + 1)
+            f = g
+            # print(f)
+        return f[n]
+
+```
+
+## 排列组合 球放盒子的问题。
+
+https://blog.csdn.net/qq_43337119/article/details/137109881
