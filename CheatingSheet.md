@@ -898,7 +898,8 @@ class StringHash:
             p[i] = (p[i - 1] * BASE) % MOD  # Base 
             h[i] = (h[i - 1] * BASE % MOD + ord(s[i - 1])) % MOD  # Hash
 
-    def get_hash(self, l, r):
+    def get_hash(self, l, r):  
+        r += 1  # 求l 到 r的hash，这个和前缀和一样，r要加一个1
         return (self.h[r] - self.h[l] * self.p[r - l] % self.MOD) % self.MOD
 
 
