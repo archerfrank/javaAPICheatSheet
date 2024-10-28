@@ -62,13 +62,13 @@ class Solution:
 
 ## Union Find
 ```python
-p = [i for i in range(n)]
-def find(x):
-    if p[x] != x:
-        p[x] = find(p[x])
-    return p[x]
-def union(x, y):
-    p[find(x)] = find(y)
+    p = [i for i in range(n)]
+    def find(x):
+        if p[x] != x:
+            p[x] = find(p[x])
+        return p[x]
+    def union(x, y):
+        p[find(x)] = find(y)
     
 def defaultdict_int():
     return defaultdict(int)
@@ -898,9 +898,28 @@ class StringHash:
             p[i] = (p[i - 1] * BASE) % MOD  # Base 
             h[i] = (h[i - 1] * BASE % MOD + ord(s[i - 1])) % MOD  # Hash
 
+    #[l, r] 闭区间的hash 值。
     def get_hash(self, l, r):  
         r += 1  # 求l 到 r的hash，这个和前缀和一样，r要加一个1
         return (self.h[r] - self.h[l] * self.p[r - l] % self.MOD) % self.MOD
+
+
+
+#应用在回文上
+sh = StringHash(s)
+sh2 = StringHash(s[::-1])
+# 判断左闭右臂区间 [l,r] 是否为回文串  0<=l<r<n
+def isPalindrome(i, j):
+    # print(i, j)
+    if i == j:
+        return True
+    if (j - i + 1) % 2 == 0:
+        if sh.get_hash(i, (j + i) // 2) == sh2.get_hash(n - 1 - j, n - (j + i) // 2 - 2):
+            return True
+    else:
+        if sh.get_hash(i, (j + i) // 2 - 1) == sh2.get_hash(n - 1 - j, n - (j + i) // 2 - 2):
+            return True
+    return False
 
 
 class ZFunction:
