@@ -2356,4 +2356,27 @@ for i in range(1, N + 1):
     for j in range(1, i):
         combs[i][j] = combs[i - 1][j] + combs[i - 1][j - 1]
 
+
+
+MOD = 1_000_000_007
+MX = 100_000
+
+f = [0] * MX  # f[i] = i!
+f[0] = 1
+for i in range(1, MX):
+    f[i] = f[i - 1] * i % MOD
+
+inv_f = [0] * MX  # inv_f[i] = i!^-1
+inv_f[-1] = pow(f[-1], -1, MOD)
+for i in range(MX - 1, 0, -1):
+    inv_f[i - 1] = inv_f[i] * i % MOD
+
+def comb(n: int, m: int) -> int:
+    return f[n] * inv_f[m] * inv_f[n - m] % MOD
+
+作者：灵茶山艾府
+链接：https://leetcode.cn/problems/count-the-number-of-arrays-with-k-matching-adjacent-elements/solutions/3033292/chun-shu-xue-ti-pythonjavacgo-by-endless-mxj7/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+
 ```
