@@ -2190,6 +2190,27 @@ class Solution:
 
 ```
 
+## 分组背包
+
+https://leetcode.cn/problems/maximum-value-of-k-coins-from-piles/solutions/1371872/zhuan-hua-cheng-fen-zu-bei-bao-pythongoc-3xnk/
+
+
+```python
+class Solution:
+    def maxValueOfCoins(self, piles: List[List[int]], k: int) -> int:
+        dp = [0] * (k + 1)
+        for p in piles:
+            m = min(len(p), k)
+            for i in range(k, -1, -1):
+                sumn = 0
+                for j in range(1, m + 1):
+                    sumn += p[j - 1]
+                    if i - j >= 0:
+                        dp[i] = max(dp[i], dp[i - j] + sumn)
+                
+        return dp[k]
+```
+
 ## 欧拉回路， 一笔画
 
 ```python
