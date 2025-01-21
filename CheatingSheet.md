@@ -2380,3 +2380,8 @@ def comb(n: int, m: int) -> int:
 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
 
 ```
+
+## 树上滑动窗口
+
+https://leetcode.cn/problems/longest-special-path/solutions/3051377/shu-shang-hua-chuang-pythonjavacgo-by-en-rh5m/
+
