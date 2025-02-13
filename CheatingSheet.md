@@ -2368,6 +2368,7 @@ https://blog.csdn.net/qq_43337119/article/details/137109881
 https://leetcode.cn/problems/find-the-number-of-possible-ways-for-an-event/solutions/2948578/zu-he-shu-xue-di-er-lei-si-te-lin-shu-py-e6sv/
 
 
+组合数的算法，用下面第二个，更快。
 ```python
 N = 1000
 combs = [[0] * (N + 1) for _ in range(N + 1)]
@@ -2376,6 +2377,7 @@ for i in range(0, N + 1):
 for i in range(1, N + 1):
     for j in range(1, i):
         combs[i][j] = combs[i - 1][j] + combs[i - 1][j - 1]
+
 
 
 
