@@ -5,6 +5,37 @@
 ## 易忘记思路
 
 ### 二分查找
+
+
+实数
+```python
+class Solution:
+    def separateSquares(self, squares: List[List[int]]) -> float:
+        mx = 0
+        tot = 0
+        for x, y, l in squares:
+            mx = max(mx, y + l)
+            tot += l * l
+        tar = tot / 2
+        e = 0.000001
+        lo = 0
+        hi = mx
+        while abs(lo - hi) > e:
+            # print(lo, hi)
+            mid = (lo + hi) / 2
+            tot = 0
+            for x, y, l in squares:
+                if y < mid:
+                    if y + l <= mid:
+                        tot += l * l
+                    else:
+                        tot += (mid - y) * l
+            if abs(tot - tar) > e and tot < tar:
+                lo = mid + e
+            else:
+                hi = mid
+        return lo 
+```
 ### 逆向思维
 
 ### 方程移相
