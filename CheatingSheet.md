@@ -2434,6 +2434,9 @@ def comb(n: int, m: int) -> int:
 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
 
 ```
+如果mod不是质数，看下面这个。
+
+https://leetcode.cn/problems/check-if-digits-are-equal-in-string-after-operations-ii/solutions/3086169/mo-shu-wei-he-shu-shi-de-zu-he-shu-by-en-8x7t/
 
 ## 树上滑动窗口
 
