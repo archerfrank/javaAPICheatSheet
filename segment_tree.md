@@ -52,7 +52,7 @@ class Seg:
             r //= 2
         return ans
 
-    def update(self, p, diff, l, r, i) -> None: #传进来就是差值了。
+    def update(self, p, diff, l, r, i) -> None: #传进来就是差值了。 #p = 1, l, r表示当前节点的位置一般传入0， len(nums) - 1
         if l == r:
             self.arr[p] += diff
             return
@@ -63,7 +63,7 @@ class Seg:
             self.update(p * 2 + 1, diff, mid + 1, r, i)
         self.push_up(p, mid, l, r)
 
-    def query(self, p, l, r, i, j) -> int: #p, l, r表示当前节点的位置，i，j，表示查询的范围
+    def query(self, p, l, r, i, j) -> int: #p = 1, l, r表示当前节点的位置一般传入0， len(nums) - 1，i，j，表示查询的范围
         if l == r:
             return self.arr[p]
         if l == i and r == j:
@@ -738,4 +738,91 @@ public class SegmentTreeDynamic {
         node.add = 0;
     }
 }
+```
+
+
+
+## 线段树二分查找
+
+```python
+
+https://leetcode.cn/problems/fruits-into-baskets-iii/solutions/3603049/xian-duan-shu-er-fen-pythonjavacgo-by-en-ssqf/
+
+class SegmentTree:
+    def __init__(self, a: List[int]):
+        n = len(a)
+        self.max = [0] * (2 << (n - 1).bit_length())  # 注意线段树数组的大小
+        self.build(a, 1, 0, n - 1)
+
+    def maintain(self, o: int):
+        self.max[o] = max(self.max[o * 2], self.max[o * 2 + 1])
+
+    # 初始化线段树
+    def build(self, a: List[int], o: int, l: int, r: int):
+        if l == r:
+            self.max[o] = a[l]
+            return
+        m = (l + r) // 2
+        self.build(a, o * 2, l, m)
+        self.build(a, o * 2 + 1, m + 1, r)
+        self.maintain(o)
+    
+    # 初始化线段树 
+    # o 线段树数组的位置，l，r 代表原数组的区间， p 原数组位置p要修改为x
+    def update(self, o: int, l: int, r: int , x: int, p: int):
+        if l == r:
+            self.max[o] = x
+            return
+        mid = (l + r) // 2
+        if p <= mid:
+            self.update(o * 2, l, mid, x, p)
+        else:
+            self.update(o * 2 + 1, mid + 1, r, x, p)
+        self.maintain(o)
+        
+
+    # 找区间内的第一个 >= x 的数，返回这个数的下标（没有则返回 -1）
+    def find(self, o: int, l: int, r: int, x: int) -> int:
+        if self.max[o] < x:  # 区间没有 >= x 的数
+            return -1
+        if l == r:
+            return l
+        m = (l + r) // 2
+        i = self.find(o * 2, l, m, x)  # 先递归左子树
+        if i < 0:  # 左子树没找到
+            i = self.find(o * 2 + 1, m + 1, r, x)  # 再递归右子树
+        return i
+    
+    # 也可以使用这个方法直接update  找区间内的第一个 >= x 的数，并更新为 -1，返回这个数的下标（没有则返回 -1）
+    def find_first_and_update(self, o: int, l: int, r: int, x: int) -> int:
+        if self.max[o] < x:  # 区间没有 >= x 的数
+            return -1
+        if l == r:
+            self.max[o] = -1  # 更新为 -1，表示不能放水果
+            return l
+        m = (l + r) // 2
+        i = self.find_first_and_update(o * 2, l, m, x)  # 先递归左子树
+        if i < 0:  # 左子树没找到
+            i = self.find_first_and_update(o * 2 + 1, m + 1, r, x)  # 再递归右子树
+        self.maintain(o)
+        return i
+
+作者：灵茶山艾府
+链接：https://leetcode.cn/problems/fruits-into-baskets-iii/solutions/3603049/xian-duan-shu-er-fen-pythonjavacgo-by-en-ssqf/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+
+class Solution:
+    def numOfUnplacedFruits(self, fruits: List[int], baskets: List[int]) -> int:
+        t = SegmentTree(baskets)
+        n = len(baskets)
+        ans = 0
+        for x in fruits:
+            v = t.find(1, 0, n - 1, x)
+            if v < 0:
+                ans += 1
+            else:
+                t.update(1,0, n - 1, 0, v)
+        return ans
+
 ```
