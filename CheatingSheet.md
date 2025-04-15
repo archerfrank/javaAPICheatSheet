@@ -40,6 +40,8 @@ class Solution:
 
 ### 方程移相
 
+### 数组转化，或者叫离散化
+
 
 ## 滑动窗口
 
@@ -372,6 +374,33 @@ class BIT:
             pos -= self.lowbit(pos)
         return ans
    
+
+
+class FenwickTree:
+    def __init__(self, size):
+        self.tree = [0] * (size + 1)  
+
+    def update(self, index, delta):
+        index += 1
+        while index <= len(self.tree) - 1:
+            self.tree[index] += delta
+            index += index & -index  
+
+    def query(self, index):
+        index += 1
+        res = 0
+        while index > 0:
+            res += self.tree[index]
+            index -= index & -index  
+        return res
+tree = FenwickTree(n)
+tree.update(pos, 1)
+sumn = tree.query(pos)
+
+作者：力扣官方题解
+链接：https://leetcode.cn/problems/count-good-triplets-in-an-array/solutions/3650507/tong-ji-shu-zu-zhong-hao-san-yuan-zu-shu-u13d/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
 ```
 
 ## LRU Cache
