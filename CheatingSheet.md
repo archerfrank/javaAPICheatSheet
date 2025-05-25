@@ -40,7 +40,7 @@ class Solution:
 
 ### 方程移相
 
-### 数组转化，或者叫离散化
+### 数组转化，或者叫离散化  
 
 
 ## 滑动窗口
@@ -1890,6 +1890,7 @@ https://leetcode.cn/circle/discuss/CaOJ45/
                 # color[y] == 2 意味着 y 所在子树已经遍历完
                 # 也就意味着 y 已经 merge 到它和 x 的 lca 上了
                 # 这里也就是要更新节点x和y的最近公共祖先。
+                # 这里更新diff是这道题的要求，其他题目，更新下面if里面的语句做具体的处理。x, y 为两个节点，lca是公共父节点。
                 if y == x or color[y] == 2:  # 从 y 向上到达 lca 然后拐弯向下到达 x
                     diff[x] += 1
                     diff[y] += 1
@@ -2421,6 +2422,8 @@ class Solution:
 ```
 
 ## 排列组合 球放盒子的问题。
+
+定理：从 k 个不同元素中，选奇数个数，有 2 **（k−1） 种选法
 
 https://blog.csdn.net/qq_43337119/article/details/137109881
 
