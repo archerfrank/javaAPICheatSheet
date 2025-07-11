@@ -2329,6 +2329,13 @@ for i, x in enumerate(nums):
 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
 
 
+# GCD
+
+for i, x in enumerate(arr):
+    for j in range(i - 1, -1, -1):
+        if gcd(arr[j], x) == arr[j]:
+            break
+        arr[j] = gcd(arr[j], x)
 ```
 
 ## 旋转矩阵
